@@ -127,6 +127,12 @@ interface MarsDao {
   @Query("SELECT * FROM payments ORDER BY paymentTimestamp DESC")
   fun getAllPayments(): Flow<List<PaymentEntity>>
 
+  @Query("SELECT * FROM payments ORDER BY paymentTimestamp DESC")
+  suspend fun getAllPaymentsList(): List<PaymentEntity>
+
+  @Query("SELECT * FROM payments WHERE syncStatus = 'PENDING'")
+  suspend fun getPendingPaymentsList(): List<PaymentEntity>
+
   @Query("SELECT * FROM payments WHERE propertyId = :propertyId ORDER BY paymentTimestamp DESC")
   fun getPaymentsByPropertyId(propertyId: String): Flow<List<PaymentEntity>>
 
@@ -142,8 +148,14 @@ interface MarsDao {
   @Query("SELECT * FROM payments WHERE id = :id LIMIT 1")
   fun getPaymentById(id: String): Flow<PaymentEntity?>
 
+  @Query("SELECT * FROM payments WHERE id = :id LIMIT 1")
+  suspend fun getPaymentByIdDirect(id: String): PaymentEntity?
+
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insertPayment(payment: PaymentEntity)
+
+  @Insert(onConflict = OnConflictStrategy.REPLACE)
+  suspend fun insertPayments(payments: List<PaymentEntity>)
 
   @Update
   suspend fun updatePayment(payment: PaymentEntity)
@@ -161,11 +173,26 @@ interface MarsDao {
   @Query("SELECT * FROM expenses ORDER BY expenseTimestamp DESC")
   fun getAllExpenses(): Flow<List<ExpenseEntity>>
 
+  @Query("SELECT * FROM expenses ORDER BY expenseTimestamp DESC")
+  suspend fun getAllExpensesList(): List<ExpenseEntity>
+
+  @Query("SELECT * FROM expenses WHERE syncStatus = 'PENDING'")
+  suspend fun getPendingExpensesList(): List<ExpenseEntity>
+
   @Query("SELECT * FROM expenses WHERE propertyName = :propertyName ORDER BY expenseTimestamp DESC")
   fun getExpensesByProperty(propertyName: String): Flow<List<ExpenseEntity>>
 
+  @Query("SELECT * FROM expenses WHERE id = :id LIMIT 1")
+  fun getExpenseById(id: String): Flow<ExpenseEntity?>
+
+  @Query("SELECT * FROM expenses WHERE id = :id LIMIT 1")
+  suspend fun getExpenseByIdDirect(id: String): ExpenseEntity?
+
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insertExpense(expense: ExpenseEntity)
+
+  @Insert(onConflict = OnConflictStrategy.REPLACE)
+  suspend fun insertExpenses(expenses: List<ExpenseEntity>)
 
   @Update
   suspend fun updateExpense(expense: ExpenseEntity)

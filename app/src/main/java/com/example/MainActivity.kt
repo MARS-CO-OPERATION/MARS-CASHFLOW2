@@ -37,7 +37,13 @@ class MainActivity : ComponentActivity() {
               )
             }
             composable("home") {
-              LandingHomeScreen(
+              MainDashboardScreen(
+                viewModel = viewModel,
+                onNavigate = { route -> navController.navigate(route) }
+              )
+            }
+            composable("main_dashboard") {
+              MainDashboardScreen(
                 viewModel = viewModel,
                 onNavigate = { route -> navController.navigate(route) }
               )
