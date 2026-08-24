@@ -1,0 +1,6 @@
+{
+  "name": "MARS Cashflow",
+  "description": "MARS Cashflow connects landlords, caretakers and tenants in one simple place — rent payments, receipts, arrears, expenses and property activity.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

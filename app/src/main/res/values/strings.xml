@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">MARS Cashflow</string>
+    <string name="default_web_client_id">mars-cashflow-app.apps.googleusercontent.com</string>
+</resources>
