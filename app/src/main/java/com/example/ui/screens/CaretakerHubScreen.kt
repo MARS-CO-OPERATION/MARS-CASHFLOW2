@@ -51,6 +51,9 @@ fun CaretakerHubScreen(
   var errorMessage by remember { mutableStateOf<String?>(null) }
 
   val caretakerDisplayName = currentUser?.displayName ?: "Peter (Caretaker)"
+  val syncStatus by viewModel.syncStatus.collectAsState()
+  val syncMessage by viewModel.syncMessage.collectAsState()
+  var isSyncingNow by remember { mutableStateOf(false) }
 
   Scaffold(
     topBar = {
@@ -101,6 +104,75 @@ fun CaretakerHubScreen(
           .padding(16.dp),
       verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+      // Cloud Synchronization Banner
+      Card(
+        colors = CardDefaults.cardColors(containerColor = MarsCard),
+        border = BorderStroke(1.dp, Color(0xFFDFE8E3)),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth()
+      ) {
+        Row(
+          modifier = Modifier.padding(14.dp),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+          ) {
+            Box(
+              modifier = Modifier
+                .size(36.dp)
+                .background(
+                  if (syncStatus == com.example.data.SyncEngine.SyncStatus.SYNCED) MarsSurfaceLight else MarsBg,
+                  RoundedCornerShape(8.dp)
+                ),
+              contentAlignment = Alignment.Center
+            ) {
+              Icon(
+                if (syncStatus == com.example.data.SyncEngine.SyncStatus.SYNCED) Icons.Default.CloudDone else Icons.Default.CloudQueue,
+                contentDescription = null,
+                tint = if (syncStatus == com.example.data.SyncEngine.SyncStatus.SYNCED) MarsGreen else MarsMuted,
+                modifier = Modifier.size(20.dp)
+              )
+            }
+            Column {
+              Text(
+                when (syncStatus) {
+                  com.example.data.SyncEngine.SyncStatus.SYNCED -> "Cloud Ledger Synchronized"
+                  com.example.data.SyncEngine.SyncStatus.SYNCING -> "Synchronizing with Cloud..."
+                  com.example.data.SyncEngine.SyncStatus.FAILED -> "Sync Pending (Saved locally)"
+                  else -> "Local Ledger Ready"
+                },
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                color = MarsInk
+              )
+              Text(
+                syncMessage.ifBlank { "All local entries cryptographically verified." },
+                fontSize = 11.sp,
+                color = MarsMuted
+              )
+            }
+          }
+
+          IconButton(
+            onClick = {
+              isSyncingNow = true
+              viewModel.triggerSync { _, _ ->
+                isSyncingNow = false
+              }
+            },
+            enabled = !isSyncingNow
+          ) {
+            if (isSyncingNow) {
+              CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MarsGreen)
+            } else {
+              Icon(Icons.Default.Sync, contentDescription = "Sync now", tint = MarsGreen)
+            }
+          }
+        }
+      }
       if (successMessage != null) {
         Card(
           colors = CardDefaults.cardColors(containerColor = MarsSurfaceLight),

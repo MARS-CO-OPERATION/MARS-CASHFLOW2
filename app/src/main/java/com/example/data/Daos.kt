@@ -14,19 +14,37 @@ interface MarsDao {
   @Query("SELECT * FROM users WHERE phoneNumber = :phone LIMIT 1")
   suspend fun getUserByPhone(phone: String): UserEntity?
 
+  @Query("SELECT * FROM users WHERE email = :email LIMIT 1")
+  suspend fun getUserByEmail(email: String): UserEntity?
+
   @Query("SELECT * FROM users WHERE id = :id LIMIT 1")
   suspend fun getUserById(id: String): UserEntity?
+
+  @Query("SELECT * FROM users WHERE phoneNumber = :identifier OR email = :identifier OR id = :identifier LIMIT 1")
+  suspend fun getUserByIdentifier(identifier: String): UserEntity?
 
   @Query("SELECT * FROM users")
   fun getAllUsers(): Flow<List<UserEntity>>
 
+  @Query("SELECT * FROM users")
+  suspend fun getAllUsersList(): List<UserEntity>
+
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insertUser(user: UserEntity)
+
+  @Insert(onConflict = OnConflictStrategy.REPLACE)
+  suspend fun insertUsers(users: List<UserEntity>)
 
   @Update
   suspend fun updateUser(user: UserEntity)
 
   // Role Assignments
+  @Query("SELECT * FROM role_assignments")
+  fun getAllRoleAssignments(): Flow<List<RoleAssignmentEntity>>
+
+  @Query("SELECT * FROM role_assignments")
+  suspend fun getAllRoleAssignmentsList(): List<RoleAssignmentEntity>
+
   @Query("SELECT * FROM role_assignments WHERE userId = :userId")
   fun getRoleAssignments(userId: String): Flow<List<RoleAssignmentEntity>>
 
@@ -35,6 +53,9 @@ interface MarsDao {
 
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insertRoleAssignment(roleAssignment: RoleAssignmentEntity)
+
+  @Insert(onConflict = OnConflictStrategy.REPLACE)
+  suspend fun insertRoleAssignments(roleAssignments: List<RoleAssignmentEntity>)
 
   @Query("DELETE FROM role_assignments WHERE userId = :userId")
   suspend fun clearRoleAssignments(userId: String)

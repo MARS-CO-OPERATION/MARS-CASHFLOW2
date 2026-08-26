@@ -38,47 +38,67 @@ class MarsRepository(
     withContext(Dispatchers.IO) {
       val existingUsers = dao.getUserByPhone("0770000001")
       if (existingUsers == null) {
-        // 1. Seed Real Users with hashed PINs
+        // 1. Seed Real Users with hashed PINs and emails
         val landlordUser = UserEntity(
           id = "USER_LANDLORD_1",
           phoneNumber = "0770000001",
+          email = "landlord@mars.ug",
           displayName = "Dr. Ronald Katende (Owner)",
           pinHash = AuthManager.hashPin("1234"),
           primaryRole = "LANDLORD",
           accountStatus = "ACTIVE",
+          organizationId = "Katende Real Estate Holdings",
           isDemo = false
         )
         val managerUser = UserEntity(
           id = "USER_MGR_1",
           phoneNumber = "0770000002",
+          email = "manager@mars.ug",
           displayName = "Peter Sserwadda (Caretaker)",
           pinHash = AuthManager.hashPin("0000"),
           primaryRole = "MANAGER",
           accountStatus = "ACTIVE",
+          organizationId = "Kampala Property Services",
           isDemo = false
         )
         val tenantUser = UserEntity(
           id = "USER_TENANT_1",
           phoneNumber = "0771111111",
+          email = "tenant@mars.ug",
           displayName = "John Mukasa (Tenant)",
           pinHash = AuthManager.hashPin("1111"),
           primaryRole = "TENANT",
           accountStatus = "ACTIVE",
+          organizationId = "Private Tenant",
+          isDemo = false
+        )
+        val serviceProviderUser = UserEntity(
+          id = "USER_SP_1",
+          phoneNumber = "0772333444",
+          email = "contractor@mars.ug",
+          displayName = "David Mukwaya (Plumbing Pro)",
+          pinHash = AuthManager.hashPin("2222"),
+          primaryRole = "SERVICE_PROVIDER",
+          accountStatus = "ACTIVE",
+          organizationId = "Mukwaya Plumbing & Maintenance",
           isDemo = false
         )
         val multiRoleUser = UserEntity(
           id = "USER_MULTIROLE_1",
           phoneNumber = "0779999999",
+          email = "multirole@mars.ug",
           displayName = "Eng. Grace Namubiru",
           pinHash = AuthManager.hashPin("9999"),
           primaryRole = "MULTIROLE",
           accountStatus = "ACTIVE",
+          organizationId = "Namubiru Group & Residence",
           isDemo = false
         )
 
         dao.insertUser(landlordUser)
         dao.insertUser(managerUser)
         dao.insertUser(tenantUser)
+        dao.insertUser(serviceProviderUser)
         dao.insertUser(multiRoleUser)
 
         // 2. Seed Role Assignments for Multi-Role User
@@ -129,7 +149,14 @@ class MarsRepository(
             role = "TENANT",
             propertyId = "PROP_KAMPALA",
             unitId = "UNIT_101",
-            workspaceTitle = "Kampala Apartments - Unit 101"
+            workspaceTitle = "Kampala Apartments - Unit 101 (Tenant)"
+          )
+        )
+        dao.insertRoleAssignment(
+          RoleAssignmentEntity(
+            userId = "USER_SP_1",
+            role = "SERVICE_PROVIDER",
+            workspaceTitle = "Mukwaya Plumbing Network (Contractor)"
           )
         )
 
@@ -496,6 +523,13 @@ class MarsRepository(
           )
           dao.insertPayment(payment)
 
+          // Immediately sync to Firestore in background
+          try {
+            firestoreSyncRepository.syncPaymentToFirestore(payment)
+          } catch (e: Exception) {
+            // Offline fallback - sync engine will reconcile later
+          }
+
           // Proper Ledger Balance Accounting
           var tenant = if (tenantId.isNotBlank()) dao.getTenantById(tenantId) else null
           // If searching by name fallback
@@ -560,6 +594,13 @@ class MarsRepository(
         syncStatus = "PENDING"
       )
       dao.insertExpense(finalExpense)
+
+      // Immediately sync expense to Firestore in background
+      try {
+        firestoreSyncRepository.syncExpenseToFirestore(finalExpense)
+      } catch (e: Exception) {
+        // Offline fallback - sync engine will reconcile later
+      }
 
       dao.insertAuditEvent(
         AuditEventEntity(

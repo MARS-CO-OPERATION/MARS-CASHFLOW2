@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,6 +18,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.RoleAssignmentEntity
+import com.example.data.UserRole
 import com.example.ui.MarsViewModel
 import com.example.ui.theme.*
 
@@ -27,6 +30,10 @@ fun MultiRoleSelectionScreen(
   onNavigate: (String) -> Unit,
   onBack: () -> Unit
 ) {
+  val currentUser by viewModel.currentUser.collectAsState()
+  val currentWorkspace by viewModel.currentWorkspace.collectAsState()
+  val userWorkspaces by viewModel.userWorkspaces.collectAsState()
+
   Scaffold(
     topBar = {
       TopAppBar(
@@ -62,7 +69,7 @@ fun MultiRoleSelectionScreen(
         .padding(20.dp),
       verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-      // Welcome Card
+      // Welcome & Profile Card
       Card(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MarsDark),
@@ -70,130 +77,186 @@ fun MultiRoleSelectionScreen(
         modifier = Modifier.fillMaxWidth()
       ) {
         Column(
-          modifier = Modifier.padding(24.dp),
+          modifier = Modifier.padding(20.dp),
           verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-          Text("WELCOME TO MARS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MarsAccent, letterSpacing = 1.2.sp)
-          Text("Choose your workspace below. Your single phone number grants you access across your authorized property relationships with strict role permissions.", fontSize = 13.sp, color = Color(0xFFC7D4CE), lineHeight = 18.sp)
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Text("AUTHORIZED ACCOUNT", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MarsAccent, letterSpacing = 1.2.sp)
+            Surface(
+              shape = RoundedCornerShape(6.dp),
+              color = MarsGreen.copy(alpha = 0.3f),
+              border = BorderStroke(1.dp, MarsGreen)
+            ) {
+              Text(
+                text = currentUser?.accountStatus ?: "ACTIVE",
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = MarsAccent,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+              )
+            }
+          }
+
+          Text(
+            currentUser?.displayName ?: "Eng. Grace Namubiru",
+            fontWeight = FontWeight.Black,
+            fontSize = 18.sp,
+            color = Color.White
+          )
+
+          Text(
+            "${currentUser?.phoneNumber ?: "+256 779 999999"} • ${currentUser?.email ?: "multirole@mars.ug"}",
+            fontSize = 12.sp,
+            color = Color(0xFFC7D4CE)
+          )
+
+          if (currentWorkspace != null) {
+            Surface(
+              shape = RoundedCornerShape(8.dp),
+              color = MarsSurfaceLight.copy(alpha = 0.15f),
+              modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
+            ) {
+              Row(
+                modifier = Modifier.padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+              ) {
+                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MarsAccent, modifier = Modifier.size(16.dp))
+                Text(
+                  "Active Workspace: ${currentWorkspace?.workspaceTitle}",
+                  fontSize = 12.sp,
+                  fontWeight = FontWeight.SemiBold,
+                  color = Color.White
+                )
+              }
+            }
+          }
         }
       }
 
-      Text("Choose your workspace:", fontWeight = FontWeight.Black, fontSize = 16.sp, color = MarsInk)
+      Text("Select Active Workspace:", fontWeight = FontWeight.Black, fontSize = 16.sp, color = MarsInk)
 
-      // Workspace 1: My Rental (Tenant)
-      Card(
-        onClick = { onNavigate("tenant") },
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MarsCard),
-        border = BorderStroke(1.dp, Color(0xFFDFE8E3)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-      ) {
-        Row(
-          modifier = Modifier.fillMaxWidth().padding(18.dp),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-              modifier = Modifier.size(44.dp).background(MarsSurfaceLight, RoundedCornerShape(12.dp)),
-              contentAlignment = Alignment.Center
+      if (userWorkspaces.isNotEmpty()) {
+        userWorkspaces.forEach { assignment ->
+          val userRole = UserRole.fromKey(assignment.role)
+          val isActive = currentWorkspace?.id == assignment.id
+
+          Card(
+            onClick = {
+              viewModel.switchWorkspace(assignment)
+              onNavigate(userRole.defaultRoute)
+            },
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = if (isActive) MarsSurfaceLight else MarsCard),
+            border = BorderStroke(if (isActive) 2.dp else 1.dp, if (isActive) MarsGreen else Color(0xFFDFE8E3)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+          ) {
+            Row(
+              modifier = Modifier.fillMaxWidth().padding(18.dp),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
             ) {
-              Text("🏠", fontSize = 20.sp)
-            }
-            Column {
-              Text("My Rental", fontWeight = FontWeight.Black, fontSize = 15.sp, color = MarsInk)
-              Text("View own rent balance, payment history & receipts", fontSize = 11.sp, color = MarsMuted)
+              Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Box(
+                  modifier = Modifier.size(44.dp).background(if (isActive) MarsGreen else MarsBg, RoundedCornerShape(12.dp)),
+                  contentAlignment = Alignment.Center
+                ) {
+                  Text(userRole.icon, fontSize = 20.sp)
+                }
+                Column {
+                  Text(
+                    assignment.workspaceTitle,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 14.sp,
+                    color = if (isActive) MarsGreen else MarsInk
+                  )
+                  Text(
+                    "${userRole.title} • Role ID: ${assignment.role}",
+                    fontSize = 11.sp,
+                    color = MarsMuted
+                  )
+                }
+              }
+              Icon(Icons.Default.ChevronRight, contentDescription = null, tint = if (isActive) MarsGreen else MarsMuted)
             }
           }
-          Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MarsGreen)
+        }
+      } else {
+        // Fallback default role items
+        val defaultRoles = listOf(
+          Triple("👑", "Landlord / Owner Workspace", UserRole.LANDLORD),
+          Triple("👨🏾💼", "Manager / Caretaker Hub", UserRole.MANAGER),
+          Triple("👤", "Tenant / Resident Portal", UserRole.TENANT),
+          Triple("🛠️", "Service Provider / Contractor", UserRole.SERVICE_PROVIDER)
+        )
+
+        defaultRoles.forEach { (icon, title, role) ->
+          Card(
+            onClick = {
+              val assignment = RoleAssignmentEntity(
+                userId = currentUser?.id ?: "CURRENT_USER",
+                role = role.name,
+                workspaceTitle = title
+              )
+              viewModel.switchWorkspace(assignment)
+              onNavigate(role.defaultRoute)
+            },
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MarsCard),
+            border = BorderStroke(1.dp, Color(0xFFDFE8E3)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+          ) {
+            Row(
+              modifier = Modifier.fillMaxWidth().padding(18.dp),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Box(
+                  modifier = Modifier.size(44.dp).background(MarsSurfaceLight, RoundedCornerShape(12.dp)),
+                  contentAlignment = Alignment.Center
+                ) {
+                  Text(icon, fontSize = 20.sp)
+                }
+                Column {
+                  Text(title, fontWeight = FontWeight.Black, fontSize = 14.sp, color = MarsInk)
+                  Text(role.subtitle, fontSize = 11.sp, color = MarsMuted)
+                }
+              }
+              Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MarsGreen)
+            }
+          }
         }
       }
 
-      // Workspace 2: My Management (Caretaker)
-      Card(
-        onClick = { onNavigate("caretaker") },
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MarsCard),
-        border = BorderStroke(1.dp, Color(0xFFDFE8E3)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-      ) {
-        Row(
-          modifier = Modifier.fillMaxWidth().padding(18.dp),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-              modifier = Modifier.size(44.dp).background(MarsSurfaceLight, RoundedCornerShape(12.dp)),
-              contentAlignment = Alignment.Center
-            ) {
-              Text("👨🏾💼", fontSize = 20.sp)
-            }
-            Column {
-              Text("My Management", fontWeight = FontWeight.Black, fontSize = 15.sp, color = MarsInk)
-              Text("Record ground payments & manage assigned properties", fontSize = 11.sp, color = MarsMuted)
-            }
-          }
-          Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MarsGreen)
-        }
-      }
+      Spacer(modifier = Modifier.height(10.dp))
 
-      // Workspace 3: My Services (Service Provider)
-      Card(
-        onClick = { onNavigate("service_providers") },
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MarsCard),
-        border = BorderStroke(1.dp, Color(0xFFDFE8E3)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-      ) {
-        Row(
-          modifier = Modifier.fillMaxWidth().padding(18.dp),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-              modifier = Modifier.size(44.dp).background(MarsSurfaceLight, RoundedCornerShape(12.dp)),
-              contentAlignment = Alignment.Center
-            ) {
-              Text("🛠️", fontSize = 20.sp)
-            }
-            Column {
-              Text("My Services", fontWeight = FontWeight.Black, fontSize = 15.sp, color = MarsInk)
-              Text("View assigned maintenance jobs & dispatch requests", fontSize = 11.sp, color = MarsMuted)
-            }
+      OutlinedButton(
+        onClick = {
+          viewModel.logout {
+            onNavigate("login")
           }
-          Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MarsGreen)
-        }
-      }
-
-      // Workspace 4: My Properties (Landlord)
-      Card(
-        onClick = { onNavigate("landlord") },
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MarsCard),
-        border = BorderStroke(1.dp, Color(0xFFDFE8E3)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        },
+        modifier = Modifier.fillMaxWidth().height(48.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = MarsRed),
+        border = BorderStroke(1.dp, MarsRed.copy(alpha = 0.5f))
       ) {
-        Row(
-          modifier = Modifier.fillMaxWidth().padding(18.dp),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-              modifier = Modifier.size(44.dp).background(MarsSurfaceLight, RoundedCornerShape(12.dp)),
-              contentAlignment = Alignment.Center
-            ) {
-              Text("🏢", fontSize = 20.sp)
-            }
-            Column {
-              Text("My Properties", fontWeight = FontWeight.Black, fontSize = 15.sp, color = MarsInk)
-              Text("Full portfolio overview, financial reports & cashflow", fontSize = 11.sp, color = MarsMuted)
-            }
-          }
-          Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MarsGreen)
-        }
+        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text("Sign Out of MARS Account", fontWeight = FontWeight.Bold)
       }
     }
   }

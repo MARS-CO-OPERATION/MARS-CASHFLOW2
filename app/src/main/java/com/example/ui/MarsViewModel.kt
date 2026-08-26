@@ -12,6 +12,7 @@ class MarsViewModel(application: Application) : AndroidViewModel(application) {
 
   val currentUser: StateFlow<UserEntity?>
   val currentWorkspace: StateFlow<RoleAssignmentEntity?>
+  val userWorkspaces: StateFlow<List<RoleAssignmentEntity>>
   val isDemoMode: StateFlow<Boolean>
   val syncStatus: StateFlow<SyncEngine.SyncStatus>
   val lastSyncedAt: StateFlow<Long>
@@ -35,6 +36,7 @@ class MarsViewModel(application: Application) : AndroidViewModel(application) {
 
     currentUser = authManager.currentUser
     currentWorkspace = authManager.currentWorkspace
+    userWorkspaces = authManager.userWorkspaces
     isDemoMode = authManager.isDemoMode
     syncStatus = syncEngine.status
     lastSyncedAt = syncEngine.lastSyncedAt
@@ -56,14 +58,89 @@ class MarsViewModel(application: Application) : AndroidViewModel(application) {
     }
   }
 
+  fun getActiveRole(): UserRole = repository.authManager.activeRole
+
   // Authentication & Workspaces
   fun login(identifier: String, pin: String, onResult: (Boolean, String) -> Unit) {
     viewModelScope.launch {
-      val result = repository.authManager.login(identifier, pin)
+      val result = repository.authManager.loginWithPhonePin(identifier, pin)
       result.onSuccess { user ->
         onResult(true, "Welcome back, ${user.displayName}!")
       }.onFailure { error ->
         onResult(false, error.message ?: "Authentication failed.")
+      }
+    }
+  }
+
+  fun loginWithEmailPassword(
+    email: String,
+    password: String,
+    onResult: (Boolean, String, UserRole?) -> Unit
+  ) {
+    viewModelScope.launch {
+      val result = repository.authManager.loginWithEmailPassword(email, password)
+      result.onSuccess { user ->
+        val role = UserRole.fromKey(user.primaryRole)
+        onResult(true, "Welcome back, ${user.displayName}!", role)
+      }.onFailure { error ->
+        onResult(false, error.message ?: "Sign-in failed. Please check your credentials.", null)
+      }
+    }
+  }
+
+  fun registerWithEmailPassword(
+    email: String,
+    password: String,
+    displayName: String,
+    phoneNumber: String,
+    role: UserRole,
+    organizationName: String? = null,
+    onResult: (Boolean, String, UserRole?) -> Unit
+  ) {
+    viewModelScope.launch {
+      val result = repository.authManager.registerWithEmailPassword(
+        email = email,
+        password = password,
+        displayName = displayName,
+        phoneNumber = phoneNumber,
+        role = role,
+        organizationName = organizationName
+      )
+      result.onSuccess { user ->
+        onResult(true, "Account created successfully for ${user.displayName} as ${role.title}!", role)
+      }.onFailure { error ->
+        onResult(false, error.message ?: "Registration failed.", null)
+      }
+    }
+  }
+
+  fun loginWithGoogle(
+    idToken: String,
+    defaultRole: UserRole = UserRole.LANDLORD,
+    onResult: (Boolean, String, UserRole?) -> Unit
+  ) {
+    viewModelScope.launch {
+      val result = repository.authManager.loginWithGoogle(
+        idToken = idToken,
+        firebaseUser = null,
+        defaultRole = defaultRole
+      )
+      result.onSuccess { user ->
+        val role = UserRole.fromKey(user.primaryRole)
+        onResult(true, "Google Sign-In verified for ${user.displayName}!", role)
+      }.onFailure { error ->
+        onResult(false, error.message ?: "Google Sign-In failed.", null)
+      }
+    }
+  }
+
+  fun sendPasswordReset(email: String, onResult: (Boolean, String) -> Unit) {
+    viewModelScope.launch {
+      val result = repository.authManager.sendPasswordReset(email)
+      result.onSuccess {
+        onResult(true, "Password reset email sent to $email. Please check your inbox.")
+      }.onFailure { error ->
+        onResult(false, error.message ?: "Failed to send reset email. Please verify the address.")
       }
     }
   }

@@ -10,15 +10,67 @@ import java.util.UUID
  * real timestamps (System.currentTimeMillis()), audit trails, and sync statuses.
  */
 
+enum class UserRole(
+  val key: String,
+  val title: String,
+  val subtitle: String,
+  val icon: String,
+  val defaultRoute: String
+) {
+  LANDLORD(
+    key = "LANDLORD",
+    title = "Landlord / Owner",
+    subtitle = "Full portfolio oversight, rent tracking, debtors & net cashflow",
+    icon = "👑",
+    defaultRoute = "landlord"
+  ),
+  MANAGER(
+    key = "MANAGER",
+    title = "Property Manager / Caretaker",
+    subtitle = "Ground collection, verified receipts & property operating expenses",
+    icon = "👨🏾💼",
+    defaultRoute = "caretaker"
+  ),
+  TENANT(
+    key = "TENANT",
+    title = "Tenant / Occupant",
+    subtitle = "Own rent balance, payment history, receipts & maintenance tickets",
+    icon = "👤",
+    defaultRoute = "tenant"
+  ),
+  SERVICE_PROVIDER(
+    key = "SERVICE_PROVIDER",
+    title = "Service Provider / Contractor",
+    subtitle = "Dispatched repair jobs, work order status & verified service history",
+    icon = "🛠️",
+    defaultRoute = "service_providers"
+  ),
+  MULTIROLE(
+    key = "MULTIROLE",
+    title = "Multi-Role Account",
+    subtitle = "One MARS account with multiple authorized roles & workspaces",
+    icon = "🔀",
+    defaultRoute = "multi_role_selection"
+  );
+
+  companion object {
+    fun fromKey(key: String?): UserRole {
+      return entries.find { it.key.equals(key, ignoreCase = true) } ?: LANDLORD
+    }
+  }
+}
+
 @Entity(tableName = "users")
 data class UserEntity(
   @PrimaryKey val id: String = UUID.randomUUID().toString(),
-  val phoneNumber: String,
+  val phoneNumber: String = "",
+  val email: String = "",
   val displayName: String,
-  val pinHash: String,
-  val primaryRole: String, // "LANDLORD", "MANAGER", "TENANT", "SERVICE_PROVIDER", "MULTIROLE"
+  val pinHash: String = "",
+  val primaryRole: String = "LANDLORD", // "LANDLORD", "MANAGER", "TENANT", "SERVICE_PROVIDER", "MULTIROLE"
   val accountStatus: String = "ACTIVE", // "ACTIVE", "SUSPENDED", "PENDING_VERIFICATION"
   val isDemo: Boolean = false,
+  val organizationId: String = "ORG_MARS",
   val createdAt: Long = System.currentTimeMillis(),
   val updatedAt: Long = System.currentTimeMillis()
 )

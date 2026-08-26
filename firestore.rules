@@ -1,0 +1,186 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function getUserRole() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? getUserData().primaryRole
+        : '';
+    }
+
+    function isLandlord() {
+      return getUserRole() == 'LANDLORD' || getUserRole() == 'MULTIROLE';
+    }
+
+    function isManager() {
+      return getUserRole() == 'MANAGER' || getUserRole() == 'MULTIROLE';
+    }
+
+    function isPropertyOwner(propertyId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/properties/$(propertyId)) &&
+        get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId == request.auth.uid;
+    }
+
+    function isAssignedManager(propertyId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/properties/$(propertyId)) &&
+        (request.auth.uid in get(/databases/$(database)/documents/properties/$(propertyId)).data.managerIds ||
+         get(/databases/$(database)/documents/properties/$(propertyId)).data.managerPhone == request.auth.token.phone_number);
+    }
+
+    function isAuthorizedForProperty(propertyId) {
+      return isPropertyOwner(propertyId) || isAssignedManager(propertyId);
+    }
+
+    // 1. User Profiles & Workspace Permissions
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId || 
+        isLandlord() || 
+        isManager()
+      );
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        isLandlord()
+      );
+      allow delete: if false; // User accounts are deactivated, never deleted directly
+    }
+
+    // Role Assignments
+    match /roleAssignments/{assignmentId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isLandlord()
+      );
+      allow write: if isAuthenticated() && isLandlord();
+    }
+
+    // 2. Properties
+    match /properties/{propertyId} {
+      allow read: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        request.auth.uid in resource.data.managerIds ||
+        isLandlord() // Multi-portfolio queries filtered by ownerId
+      );
+      allow create: if isAuthenticated() && isLandlord() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        isAssignedManager(propertyId)
+      );
+      allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+    }
+
+    // 3. Units
+    match /units/{unitId} {
+      allow read: if isAuthenticated() && (
+        isAuthorizedForProperty(resource.data.propertyId) ||
+        resource.data.currentTenantId == request.auth.uid
+      );
+      allow create, update: if isAuthenticated() && isAuthorizedForProperty(request.resource.data.propertyId);
+      allow delete: if isAuthenticated() && isPropertyOwner(resource.data.propertyId);
+    }
+
+    // 4. Tenants & Leases
+    match /tenants/{tenantId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.phone == request.auth.token.phone_number ||
+        isAuthorizedForProperty(resource.data.propertyId)
+      );
+      allow create, update: if isAuthenticated() && isAuthorizedForProperty(request.resource.data.propertyId);
+      allow delete: if isAuthenticated() && isPropertyOwner(resource.data.propertyId);
+    }
+
+    match /leases/{leaseId} {
+      allow read: if isAuthenticated() && (
+        resource.data.tenantId == request.auth.uid ||
+        isAuthorizedForProperty(resource.data.propertyId)
+      );
+      allow create, update: if isAuthenticated() && isAuthorizedForProperty(request.resource.data.propertyId);
+      allow delete: if isAuthenticated() && isPropertyOwner(resource.data.propertyId);
+    }
+
+    // 5. Financial Inflows: Payments (Immutable Ledger)
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() && (
+        resource.data.tenantId == request.auth.uid ||
+        isAuthorizedForProperty(resource.data.propertyId) ||
+        isLandlord()
+      );
+      // Only authorized property managers or landlords can record payments
+      allow create: if isAuthenticated() && (
+        isAuthorizedForProperty(request.resource.data.propertyId) ||
+        (request.resource.data.tenantId == request.auth.uid && request.resource.data.method in ['MTN_MOMO', 'AIRTEL_MONEY'])
+      );
+      // Payments are immutable: cannot be modified or deleted directly. Corrections require reversal audit events.
+      allow update: if isAuthenticated() && isPropertyOwner(resource.data.propertyId) && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['syncStatus', 'reversalReason', 'status']);
+      allow delete: if false;
+    }
+
+    // 6. Financial Outflows: Expenses
+    match /expenses/{expenseId} {
+      allow read: if isAuthenticated() && isAuthorizedForProperty(resource.data.propertyId);
+      allow create: if isAuthenticated() && isAuthorizedForProperty(request.resource.data.propertyId);
+      allow update: if isAuthenticated() && isAuthorizedForProperty(resource.data.propertyId);
+      allow delete: if isAuthenticated() && isPropertyOwner(resource.data.propertyId);
+    }
+
+    // 7. Maintenance & Dispatch Tickets
+    match /maintenance/{ticketId} {
+      allow read: if isAuthenticated() && (
+        resource.data.tenantId == request.auth.uid ||
+        resource.data.assignedProviderId == request.auth.uid ||
+        isAuthorizedForProperty(resource.data.propertyId)
+      );
+      allow create: if isAuthenticated() && (
+        request.resource.data.tenantId == request.auth.uid ||
+        isAuthorizedForProperty(request.resource.data.propertyId)
+      );
+      allow update: if isAuthenticated() && (
+        isAuthorizedForProperty(resource.data.propertyId) ||
+        (resource.data.assignedProviderId == request.auth.uid && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completionNotes', 'completedAt', 'actualCost']))
+      );
+      allow delete: if isAuthenticated() && isPropertyOwner(resource.data.propertyId);
+    }
+
+    // 8. Official Digital Receipts (Immutable Proof of Payment)
+    match /receipts/{receiptId} {
+      allow read: if isAuthenticated() && (
+        resource.data.tenantId == request.auth.uid ||
+        isAuthorizedForProperty(resource.data.propertyId)
+      );
+      allow create: if isAuthenticated() && isAuthorizedForProperty(request.resource.data.propertyId);
+      allow update, delete: if false; // Receipts cannot be altered once issued
+    }
+
+    // 9. Audit Logs (Append-Only)
+    match /auditLogs/{logId} {
+      allow read: if isAuthenticated() && isLandlord();
+      allow create: if isAuthenticated();
+      allow update, delete: if false; // Audit trail is strictly immutable
+    }
+
+    // 10. Service Providers
+    match /serviceProviders/{providerId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && (isLandlord() || request.auth.uid == providerId);
+    }
+  }
+}
