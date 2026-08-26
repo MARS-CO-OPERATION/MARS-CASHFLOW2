@@ -15,7 +15,8 @@ class MarsRepository(
   private val dao: MarsDao,
   val authManager: AuthManager,
   val syncEngine: SyncEngine,
-  val firestoreSyncRepository: RoomToFirestoreRepository = RoomToFirestoreRepositoryImpl(dao)
+  val firestoreSyncRepository: RoomToFirestoreRepository = RoomToFirestoreRepositoryImpl(dao),
+  val authRepository: FirebaseAuthenticationRepository = FirebaseAuthenticationRepositoryImpl(authManager.context, dao)
 ) {
 
   val properties: Flow<List<PropertyEntity>> = dao.getAllProperties()

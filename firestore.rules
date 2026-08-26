@@ -2,9 +2,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ==========================================================
-    // HELPER FUNCTIONS
-    // ==========================================================
+    // =========================================================================
+    // HELPER FUNCTIONS & ROLE VERIFICATION
+    // =========================================================================
 
     function isAuthenticated() {
       return request.auth != null;
@@ -18,10 +18,29 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    function hasUserDoc() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
     function getUserRole() {
-      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+      return hasUserDoc()
         ? getUserDoc().primaryRole
         : (request.auth.token.role != null ? request.auth.token.role : '');
+    }
+
+    function getUserWorkspace() {
+      return hasUserDoc() && getUserDoc().organizationId != null
+        ? getUserDoc().organizationId
+        : '';
+    }
+
+    function isWorkspaceMember(orgId) {
+      return isAuthenticated() && (
+        orgId == null ||
+        orgId == '' ||
+        getUserWorkspace() == '' ||
+        getUserWorkspace() == orgId
+      );
     }
 
     function isLandlord() {
@@ -40,7 +59,7 @@ service cloud.firestore {
       return getUserRole() == 'TENANT';
     }
 
-    // Property ownership verification: checks ownerUserId, landlordId, or ownerId
+    // --- Property Authorization Checks ---
     function isPropertyOwner(propertyId) {
       return isAuthenticated() &&
         exists(/databases/$(database)/documents/properties/$(propertyId)) &&
@@ -51,7 +70,6 @@ service cloud.firestore {
         );
     }
 
-    // Property manager check: checks managerIds array or managerPhone
     function isPropertyManager(propertyId) {
       return isAuthenticated() &&
         exists(/databases/$(database)/documents/properties/$(propertyId)) &&
@@ -67,55 +85,65 @@ service cloud.firestore {
       return isPropertyOwner(propertyId) || isPropertyManager(propertyId);
     }
 
-    // ==========================================================
-    // 1. USER PROFILES
-    // ==========================================================
-    // Users can read & write their own account; Landlords & Managers can view profiles
+    // =========================================================================
+    // 1. USER PROFILES & ACCOUNTS
+    // =========================================================================
+    // Users can access their own document; Landlords/Managers in the same workspace can read team profiles
     match /users/{userId} {
       allow read: if isAuthenticated() && (
         request.auth.uid == userId ||
-        isLandlord() ||
-        isManager()
+        (isLandlord() && isWorkspaceMember(resource.data.organizationId)) ||
+        (isManager() && isWorkspaceMember(resource.data.organizationId))
       );
       allow create: if isAuthenticated() && request.auth.uid == userId;
       allow update: if isAuthenticated() && (
         request.auth.uid == userId ||
-        isLandlord()
+        (isLandlord() && isWorkspaceMember(resource.data.organizationId))
       );
-      allow delete: if false; // Soft-delete / account deactivation only
+      allow delete: if false; // Strict soft-deactivation only
     }
 
-    // ==========================================================
+    // =========================================================================
     // 2. ROLE & WORKSPACE ASSIGNMENTS
-    // ==========================================================
+    // =========================================================================
     match /role_assignments/{assignmentId} {
       allow read: if isAuthenticated() && (
         resource.data.userId == request.auth.uid ||
-        isLandlord() ||
-        isManager()
+        (isLandlord() && isWorkspaceMember(resource.data.organizationId)) ||
+        (isManager() && isWorkspaceMember(resource.data.organizationId))
       );
-      allow write: if isAuthenticated() && (isLandlord() || request.auth.uid == request.resource.data.userId);
+      allow create, update: if isAuthenticated() && (
+        isLandlord() ||
+        request.auth.uid == request.resource.data.userId
+      );
+      allow delete: if isAuthenticated() && isLandlord();
     }
+
     match /roleAssignments/{assignmentId} {
       allow read: if isAuthenticated() && (
         resource.data.userId == request.auth.uid ||
-        isLandlord() ||
-        isManager()
+        (isLandlord() && isWorkspaceMember(resource.data.organizationId)) ||
+        (isManager() && isWorkspaceMember(resource.data.organizationId))
       );
-      allow write: if isAuthenticated() && (isLandlord() || request.auth.uid == request.resource.data.userId);
+      allow create, update: if isAuthenticated() && (
+        isLandlord() ||
+        request.auth.uid == request.resource.data.userId
+      );
+      allow delete: if isAuthenticated() && isLandlord();
     }
 
-    // ==========================================================
+    // =========================================================================
     // 3. PROPERTIES
-    // ==========================================================
-    // Landlords can only create/access/delete their assigned properties
+    // =========================================================================
+    // Landlords can manage their assigned properties; Managers can view & update assigned properties
     match /properties/{propertyId} {
       allow read: if isAuthenticated() && (
         resource.data.ownerUserId == request.auth.uid ||
         resource.data.landlordId == request.auth.uid ||
         resource.data.ownerId == request.auth.uid ||
         (resource.data.managerIds != null && request.auth.uid in resource.data.managerIds) ||
-        isPropertyOwner(propertyId)
+        isPropertyOwner(propertyId) ||
+        (isLandlord() && isWorkspaceMember(resource.data.organizationId))
       );
       allow create: if isAuthenticated() && (
         isLandlord() || isManager()
@@ -137,9 +165,9 @@ service cloud.firestore {
       );
     }
 
-    // ==========================================================
+    // =========================================================================
     // 4. UNITS
-    // ==========================================================
+    // =========================================================================
     match /units/{unitId} {
       allow read: if isAuthenticated() && (
         isAuthorizedForProperty(resource.data.propertyId) ||
@@ -150,9 +178,10 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && isPropertyOwner(resource.data.propertyId);
     }
 
-    // ==========================================================
+    // =========================================================================
     // 5. TENANTS & LEASES
-    // ==========================================================
+    // =========================================================================
+    // Tenants can read their own lease & profile; Landlords/Managers access their property tenants
     match /tenants/{tenantId} {
       allow read: if isAuthenticated() && (
         resource.data.userId == request.auth.uid ||
@@ -166,7 +195,8 @@ service cloud.firestore {
       );
       allow update: if isAuthenticated() && (
         isAuthorizedForProperty(resource.data.propertyId) ||
-        (resource.data.userId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phone', 'email', 'name']))
+        (resource.data.userId == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phone', 'email', 'name', 'emergencyContact']))
       );
       allow delete: if isAuthenticated() && isPropertyOwner(resource.data.propertyId);
     }
@@ -180,9 +210,9 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && isPropertyOwner(resource.data.propertyId);
     }
 
-    // ==========================================================
+    // =========================================================================
     // 6. FINANCIAL INFLOWS: PAYMENTS (IMMUTABLE LEDGER)
-    // ==========================================================
+    // =========================================================================
     match /payments/{paymentId} {
       allow read: if isAuthenticated() && (
         resource.data.tenantId == request.auth.uid ||
@@ -191,17 +221,18 @@ service cloud.firestore {
       );
       allow create: if isAuthenticated() && (
         isAuthorizedForProperty(request.resource.data.propertyId) ||
-        (request.resource.data.tenantId == request.auth.uid && request.resource.data.paymentMethod in ['MTN_MOMO', 'AIRTEL_MONEY', 'BANK_TRANSFER'])
+        (request.resource.data.tenantId == request.auth.uid &&
+         request.resource.data.paymentMethod in ['MTN_MOMO', 'AIRTEL_MONEY', 'BANK_TRANSFER'])
       );
-      // Immutable: Only status/reversal fields can be updated by authorized property owners
+      // Immutable ledger: only status or reversal audit fields can be modified by the property owner
       allow update: if isAuthenticated() && isPropertyOwner(resource.data.propertyId) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['syncStatus', 'reversalReason', 'paymentStatus', 'isReconciled']);
-      allow delete: if false;
+      allow delete: if false; // Strict prohibition on payment deletion
     }
 
-    // ==========================================================
+    // =========================================================================
     // 7. FINANCIAL OUTFLOWS: EXPENSES
-    // ==========================================================
+    // =========================================================================
     match /expenses/{expenseId} {
       allow read: if isAuthenticated() && isAuthorizedForProperty(resource.data.propertyId);
       allow create: if isAuthenticated() && (
@@ -212,9 +243,9 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && isPropertyOwner(resource.data.propertyId);
     }
 
-    // ==========================================================
-    // 8. MAINTENANCE & DISPATCH TICKETS
-    // ==========================================================
+    // =========================================================================
+    // 8. MAINTENANCE TICKETS & SERVICE DISPATCHES
+    // =========================================================================
     match /maintenance/{ticketId} {
       allow read: if isAuthenticated() && (
         resource.data.tenantId == request.auth.uid ||
@@ -251,25 +282,25 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && isPropertyOwner(resource.data.propertyId);
     }
 
-    // ==========================================================
+    // =========================================================================
     // 9. DIGITAL RECEIPTS (IMMUTABLE PROOF OF PAYMENT)
-    // ==========================================================
+    // =========================================================================
     match /receipts/{receiptId} {
       allow read: if isAuthenticated() && (
         resource.data.tenantId == request.auth.uid ||
         isAuthorizedForProperty(resource.data.propertyId)
       );
       allow create: if isAuthenticated() && isAuthorizedForProperty(request.resource.data.propertyId);
-      allow update, delete: if false; // Receipts cannot be altered once issued
+      allow update, delete: if false; // Receipts are tamper-proof and immutable
     }
 
-    // ==========================================================
+    // =========================================================================
     // 10. AUDIT LOGS & EVENT JOURNAL (APPEND-ONLY)
-    // ==========================================================
+    // =========================================================================
     match /audit_events/{eventId} {
       allow read: if isAuthenticated() && isLandlord();
       allow create: if isAuthenticated();
-      allow update, delete: if false; // Audit trail is strictly immutable
+      allow update, delete: if false; // Audit records cannot be altered or removed
     }
 
     match /auditLogs/{logId} {
@@ -278,9 +309,9 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // ==========================================================
+    // =========================================================================
     // 11. SERVICE PROVIDERS DIRECTORY
-    // ==========================================================
+    // =========================================================================
     match /service_providers/{providerId} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() && (isLandlord() || request.auth.uid == providerId);

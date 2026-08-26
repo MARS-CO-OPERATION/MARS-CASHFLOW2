@@ -9,7 +9,9 @@ import kotlinx.coroutines.launch
 
 class MarsViewModel(application: Application) : AndroidViewModel(application) {
   val repository: MarsRepository
+  val authRepository: FirebaseAuthenticationRepository
 
+  val authSessionState: StateFlow<AuthSessionState>
   val currentUser: StateFlow<UserEntity?>
   val currentWorkspace: StateFlow<RoleAssignmentEntity?>
   val userWorkspaces: StateFlow<List<RoleAssignmentEntity>>
@@ -32,8 +34,11 @@ class MarsViewModel(application: Application) : AndroidViewModel(application) {
     val db = MarsDatabase.getDatabase(application)
     val authManager = AuthManager(application, db.marsDao())
     val syncEngine = SyncEngine(db.marsDao())
-    repository = MarsRepository(db.marsDao(), authManager, syncEngine)
+    val authRepo = FirebaseAuthenticationRepositoryImpl(application, db.marsDao())
+    repository = MarsRepository(db.marsDao(), authManager, syncEngine, authRepository = authRepo)
+    authRepository = repository.authRepository
 
+    authSessionState = authRepository.sessionState
     currentUser = authManager.currentUser
     currentWorkspace = authManager.currentWorkspace
     userWorkspaces = authManager.userWorkspaces

@@ -49,7 +49,7 @@ private suspend fun <T> Task<T>.awaitTaskResult(): T = suspendCancellableCorouti
  * 5. MULTIROLE: Single account with multiple authorized roles & workspaces.
  */
 class AuthManager(
-  private val context: Context,
+  val context: Context,
   private val dao: MarsDao,
   private val firebaseAuth: FirebaseAuth? = runCatching {
     if (com.google.firebase.FirebaseApp.getApps(context).isEmpty()) {
