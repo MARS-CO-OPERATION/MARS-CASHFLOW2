@@ -51,8 +51,18 @@ private suspend fun <T> Task<T>.awaitTaskResult(): T = suspendCancellableCorouti
 class AuthManager(
   private val context: Context,
   private val dao: MarsDao,
-  private val firebaseAuth: FirebaseAuth = FirebaseAuth.getInstance(),
-  private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
+  private val firebaseAuth: FirebaseAuth? = runCatching {
+    if (com.google.firebase.FirebaseApp.getApps(context).isEmpty()) {
+      com.google.firebase.FirebaseApp.initializeApp(context)
+    }
+    FirebaseAuth.getInstance()
+  }.getOrNull(),
+  private val firestore: FirebaseFirestore? = runCatching {
+    if (com.google.firebase.FirebaseApp.getApps(context).isEmpty()) {
+      com.google.firebase.FirebaseApp.initializeApp(context)
+    }
+    FirebaseFirestore.getInstance()
+  }.getOrNull()
 ) {
 
   private val prefs: SharedPreferences =
@@ -125,14 +135,16 @@ class AuthManager(
 
       var uid = UUID.randomUUID().toString()
       try {
-        val authResult = firebaseAuth.createUserWithEmailAndPassword(cleanEmail, password).awaitTaskResult()
-        val fbUser = authResult.user
-        if (fbUser != null) {
-          uid = fbUser.uid
-          val profileUpdates = UserProfileChangeRequest.Builder()
-            .setDisplayName(cleanName)
-            .build()
-          fbUser.updateProfile(profileUpdates).awaitTaskResult()
+        if (firebaseAuth != null) {
+          val authResult = firebaseAuth.createUserWithEmailAndPassword(cleanEmail, password).awaitTaskResult()
+          val fbUser = authResult.user
+          if (fbUser != null) {
+            uid = fbUser.uid
+            val profileUpdates = UserProfileChangeRequest.Builder()
+              .setDisplayName(cleanName)
+              .build()
+            fbUser.updateProfile(profileUpdates).awaitTaskResult()
+          }
         }
       } catch (authEx: Exception) {
         Log.w("AuthManager", "Firebase Auth registration online step skipped/offline fallback: ${authEx.message}")
@@ -174,28 +186,30 @@ class AuthManager(
 
       // Sync user doc to Firestore
       try {
-        val firestoreUserMap = hashMapOf(
-          "id" to user.id,
-          "email" to user.email,
-          "phoneNumber" to user.phoneNumber,
-          "displayName" to user.displayName,
-          "primaryRole" to user.primaryRole,
-          "accountStatus" to user.accountStatus,
-          "organizationId" to user.organizationId,
-          "isDemo" to user.isDemo,
-          "createdAt" to user.createdAt,
-          "updatedAt" to user.updatedAt
-        )
-        firestore.collection("users").document(user.id).set(firestoreUserMap, SetOptions.merge()).awaitTaskResult()
+        if (firestore != null) {
+          val firestoreUserMap = hashMapOf(
+            "id" to user.id,
+            "email" to user.email,
+            "phoneNumber" to user.phoneNumber,
+            "displayName" to user.displayName,
+            "primaryRole" to user.primaryRole,
+            "accountStatus" to user.accountStatus,
+            "organizationId" to user.organizationId,
+            "isDemo" to user.isDemo,
+            "createdAt" to user.createdAt,
+            "updatedAt" to user.updatedAt
+          )
+          firestore.collection("users").document(user.id).set(firestoreUserMap, SetOptions.merge()).awaitTaskResult()
 
-        val firestoreRoleMap = hashMapOf(
-          "id" to assignment.id,
-          "userId" to assignment.userId,
-          "role" to assignment.role,
-          "workspaceTitle" to assignment.workspaceTitle,
-          "createdAt" to assignment.createdAt
-        )
-        firestore.collection("role_assignments").document(assignment.id).set(firestoreRoleMap, SetOptions.merge()).awaitTaskResult()
+          val firestoreRoleMap = hashMapOf(
+            "id" to assignment.id,
+            "userId" to assignment.userId,
+            "role" to assignment.role,
+            "workspaceTitle" to assignment.workspaceTitle,
+            "createdAt" to assignment.createdAt
+          )
+          firestore.collection("role_assignments").document(assignment.id).set(firestoreRoleMap, SetOptions.merge()).awaitTaskResult()
+        }
       } catch (cloudEx: Exception) {
         Log.w("AuthManager", "Firestore sync postponed (offline): ${cloudEx.message}")
       }
@@ -249,27 +263,29 @@ class AuthManager(
 
       // 1. Try Firebase Auth
       try {
-        val authResult = firebaseAuth.signInWithEmailAndPassword(cleanEmail, password).awaitTaskResult()
-        val fbUser = authResult.user
-        if (fbUser != null) {
-          // Look up or pull Firestore profile
-          val doc = firestore.collection("users").document(fbUser.uid).get().awaitTaskResult()
-          if (doc.exists()) {
-            val data = doc.data
-            if (data != null) {
-              user = UserEntity(
-                id = fbUser.uid,
-                email = data["email"] as? String ?: cleanEmail,
-                phoneNumber = data["phoneNumber"] as? String ?: "",
-                displayName = data["displayName"] as? String ?: (fbUser.displayName ?: "MARS User"),
-                primaryRole = data["primaryRole"] as? String ?: "LANDLORD",
-                accountStatus = data["accountStatus"] as? String ?: "ACTIVE",
-                organizationId = data["organizationId"] as? String ?: "ORG_MARS",
-                isDemo = data["isDemo"] as? Boolean ?: false,
-                createdAt = (data["createdAt"] as? Long) ?: System.currentTimeMillis(),
-                updatedAt = (data["updatedAt"] as? Long) ?: System.currentTimeMillis()
-              )
-              dao.insertUser(user)
+        if (firebaseAuth != null) {
+          val authResult = firebaseAuth.signInWithEmailAndPassword(cleanEmail, password).awaitTaskResult()
+          val fbUser = authResult.user
+          if (fbUser != null && firestore != null) {
+            // Look up or pull Firestore profile
+            val doc = firestore.collection("users").document(fbUser.uid).get().awaitTaskResult()
+            if (doc.exists()) {
+              val data = doc.data
+              if (data != null) {
+                user = UserEntity(
+                  id = fbUser.uid,
+                  email = data["email"] as? String ?: cleanEmail,
+                  phoneNumber = data["phoneNumber"] as? String ?: "",
+                  displayName = data["displayName"] as? String ?: (fbUser.displayName ?: "MARS User"),
+                  primaryRole = data["primaryRole"] as? String ?: "LANDLORD",
+                  accountStatus = data["accountStatus"] as? String ?: "ACTIVE",
+                  organizationId = data["organizationId"] as? String ?: "ORG_MARS",
+                  isDemo = data["isDemo"] as? Boolean ?: false,
+                  createdAt = (data["createdAt"] as? Long) ?: System.currentTimeMillis(),
+                  updatedAt = (data["updatedAt"] as? Long) ?: System.currentTimeMillis()
+                )
+                dao.insertUser(user)
+              }
             }
           }
         }
@@ -355,7 +371,7 @@ class AuthManager(
   ): Result<UserEntity> = withContext(Dispatchers.IO) {
     try {
       var fbUser = firebaseUser
-      if (fbUser == null && idToken.isNotBlank()) {
+      if (fbUser == null && idToken.isNotBlank() && firebaseAuth != null) {
         val credential = GoogleAuthProvider.getCredential(idToken, null)
         val authResult = firebaseAuth.signInWithCredential(credential).awaitTaskResult()
         fbUser = authResult.user
@@ -372,22 +388,24 @@ class AuthManager(
       // Check Firestore profile
       var user: UserEntity? = null
       try {
-        val doc = firestore.collection("users").document(uid).get().awaitTaskResult()
-        if (doc.exists()) {
-          val data = doc.data
-          if (data != null) {
-            user = UserEntity(
-              id = uid,
-              email = email,
-              phoneNumber = data["phoneNumber"] as? String ?: (fbUser.phoneNumber ?: ""),
-              displayName = data["displayName"] as? String ?: displayName,
-              primaryRole = data["primaryRole"] as? String ?: defaultRole.key,
-              accountStatus = data["accountStatus"] as? String ?: "ACTIVE",
-              organizationId = data["organizationId"] as? String ?: "ORG_MARS",
-              isDemo = false,
-              createdAt = (data["createdAt"] as? Long) ?: System.currentTimeMillis(),
-              updatedAt = System.currentTimeMillis()
-            )
+        if (firestore != null) {
+          val doc = firestore.collection("users").document(uid).get().awaitTaskResult()
+          if (doc.exists()) {
+            val data = doc.data
+            if (data != null) {
+              user = UserEntity(
+                id = uid,
+                email = email,
+                phoneNumber = data["phoneNumber"] as? String ?: (fbUser.phoneNumber ?: ""),
+                displayName = data["displayName"] as? String ?: displayName,
+                primaryRole = data["primaryRole"] as? String ?: defaultRole.key,
+                accountStatus = data["accountStatus"] as? String ?: "ACTIVE",
+                organizationId = data["organizationId"] as? String ?: "ORG_MARS",
+                isDemo = false,
+                createdAt = (data["createdAt"] as? Long) ?: System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis()
+              )
+            }
           }
         }
       } catch (e: Exception) {
@@ -422,7 +440,7 @@ class AuthManager(
           "updatedAt" to user.updatedAt
         )
         try {
-          firestore.collection("users").document(uid).set(firestoreUserMap, SetOptions.merge()).awaitTaskResult()
+          firestore?.collection("users")?.document(uid)?.set(firestoreUserMap, SetOptions.merge())?.awaitTaskResult()
         } catch (e: Exception) {
           Log.w("AuthManager", "Failed to write user to Firestore: ${e.message}")
         }
@@ -551,7 +569,7 @@ class AuthManager(
       if (cleanEmail.isEmpty()) {
         return@withContext Result.failure(IllegalArgumentException("Please provide an email address."))
       }
-      firebaseAuth.sendPasswordResetEmail(cleanEmail).awaitTaskResult()
+      firebaseAuth?.sendPasswordResetEmail(cleanEmail)?.awaitTaskResult()
       Result.success(Unit)
     } catch (e: Exception) {
       Log.w("AuthManager", "Password reset failed: ${e.message}")
@@ -579,7 +597,7 @@ class AuthManager(
 
   suspend fun logout() = withContext(Dispatchers.IO) {
     try {
-      firebaseAuth.signOut()
+      firebaseAuth?.signOut()
     } catch (e: Exception) {
       Log.w("AuthManager", "Firebase signOut error: ${e.message}")
     }

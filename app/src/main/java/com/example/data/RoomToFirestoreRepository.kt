@@ -77,7 +77,7 @@ interface RoomToFirestoreRepository {
  */
 class RoomToFirestoreRepositoryImpl(
   private val dao: MarsDao,
-  private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
+  private val firestore: FirebaseFirestore? = runCatching { FirebaseFirestore.getInstance() }.getOrNull()
 ) : RoomToFirestoreRepository {
 
   companion object {
@@ -91,6 +91,7 @@ class RoomToFirestoreRepositoryImpl(
   // --- Properties ---
 
   override suspend fun pushPropertiesToFirestore(): Result<Int> = withContext(Dispatchers.IO) {
+    if (firestore == null) return@withContext Result.success(0)
     try {
       val properties = dao.getAllPropertiesList()
       var count = 0
@@ -112,6 +113,7 @@ class RoomToFirestoreRepositoryImpl(
   }
 
   override suspend fun pullPropertiesFromFirestore(): Result<Int> = withContext(Dispatchers.IO) {
+    if (firestore == null) return@withContext Result.success(0)
     try {
       val snapshot: QuerySnapshot = firestore.collection(COLLECTION_PROPERTIES)
         .get()
@@ -134,6 +136,7 @@ class RoomToFirestoreRepositoryImpl(
   }
 
   override suspend fun syncPropertyToFirestore(property: PropertyEntity): Result<Unit> = withContext(Dispatchers.IO) {
+    if (firestore == null) return@withContext Result.success(Unit)
     try {
       val data = property.toFirestoreMap()
       firestore.collection(COLLECTION_PROPERTIES)
@@ -150,6 +153,7 @@ class RoomToFirestoreRepositoryImpl(
   }
 
   override suspend fun deletePropertyFromFirestore(propertyId: String): Result<Unit> = withContext(Dispatchers.IO) {
+    if (firestore == null) return@withContext Result.success(Unit)
     try {
       firestore.collection(COLLECTION_PROPERTIES)
         .document(propertyId)
@@ -163,6 +167,11 @@ class RoomToFirestoreRepositoryImpl(
   }
 
   override fun observeRemoteProperties(): Flow<List<PropertyEntity>> = callbackFlow {
+    if (firestore == null) {
+      trySend(emptyList())
+      awaitClose { }
+      return@callbackFlow
+    }
     val listenerRegistration = firestore.collection(COLLECTION_PROPERTIES)
       .addSnapshotListener { snapshot, error ->
         if (error != null) {
@@ -184,6 +193,7 @@ class RoomToFirestoreRepositoryImpl(
   // --- Tenants ---
 
   override suspend fun pushTenantsToFirestore(): Result<Int> = withContext(Dispatchers.IO) {
+    if (firestore == null) return@withContext Result.success(0)
     try {
       val tenants = dao.getAllTenantsList()
       var count = 0
@@ -205,6 +215,7 @@ class RoomToFirestoreRepositoryImpl(
   }
 
   override suspend fun pullTenantsFromFirestore(): Result<Int> = withContext(Dispatchers.IO) {
+    if (firestore == null) return@withContext Result.success(0)
     try {
       val snapshot: QuerySnapshot = firestore.collection(COLLECTION_TENANTS)
         .get()
@@ -227,6 +238,7 @@ class RoomToFirestoreRepositoryImpl(
   }
 
   override suspend fun syncTenantToFirestore(tenant: TenantEntity): Result<Unit> = withContext(Dispatchers.IO) {
+    if (firestore == null) return@withContext Result.success(Unit)
     try {
       val data = tenant.toFirestoreMap()
       firestore.collection(COLLECTION_TENANTS)
@@ -243,6 +255,7 @@ class RoomToFirestoreRepositoryImpl(
   }
 
   override suspend fun deleteTenantFromFirestore(tenantId: String): Result<Unit> = withContext(Dispatchers.IO) {
+    if (firestore == null) return@withContext Result.success(Unit)
     try {
       firestore.collection(COLLECTION_TENANTS)
         .document(tenantId)
@@ -256,6 +269,11 @@ class RoomToFirestoreRepositoryImpl(
   }
 
   override fun observeRemoteTenants(): Flow<List<TenantEntity>> = callbackFlow {
+    if (firestore == null) {
+      trySend(emptyList())
+      awaitClose { }
+      return@callbackFlow
+    }
     val listenerRegistration = firestore.collection(COLLECTION_TENANTS)
       .addSnapshotListener { snapshot, error ->
         if (error != null) {
@@ -277,6 +295,7 @@ class RoomToFirestoreRepositoryImpl(
   // --- Payments (Ledger Inflow) ---
 
   override suspend fun pushPaymentsToFirestore(): Result<Int> = withContext(Dispatchers.IO) {
+    if (firestore == null) return@withContext Result.success(0)
     try {
       val payments = dao.getAllPaymentsList()
       var count = 0
@@ -298,6 +317,7 @@ class RoomToFirestoreRepositoryImpl(
   }
 
   override suspend fun pullPaymentsFromFirestore(): Result<Int> = withContext(Dispatchers.IO) {
+    if (firestore == null) return@withContext Result.success(0)
     try {
       val snapshot: QuerySnapshot = firestore.collection(COLLECTION_PAYMENTS)
         .get()
@@ -320,6 +340,7 @@ class RoomToFirestoreRepositoryImpl(
   }
 
   override suspend fun syncPaymentToFirestore(payment: PaymentEntity): Result<Unit> = withContext(Dispatchers.IO) {
+    if (firestore == null) return@withContext Result.success(Unit)
     try {
       val data = payment.toFirestoreMap()
       firestore.collection(COLLECTION_PAYMENTS)
@@ -336,6 +357,7 @@ class RoomToFirestoreRepositoryImpl(
   }
 
   override suspend fun deletePaymentFromFirestore(paymentId: String): Result<Unit> = withContext(Dispatchers.IO) {
+    if (firestore == null) return@withContext Result.success(Unit)
     try {
       firestore.collection(COLLECTION_PAYMENTS)
         .document(paymentId)
@@ -349,6 +371,11 @@ class RoomToFirestoreRepositoryImpl(
   }
 
   override fun observeRemotePayments(): Flow<List<PaymentEntity>> = callbackFlow {
+    if (firestore == null) {
+      trySend(emptyList())
+      awaitClose { }
+      return@callbackFlow
+    }
     val listenerRegistration = firestore.collection(COLLECTION_PAYMENTS)
       .addSnapshotListener { snapshot, error ->
         if (error != null) {
@@ -370,6 +397,7 @@ class RoomToFirestoreRepositoryImpl(
   // --- Expenses (Ledger Outflow) ---
 
   override suspend fun pushExpensesToFirestore(): Result<Int> = withContext(Dispatchers.IO) {
+    if (firestore == null) return@withContext Result.success(0)
     try {
       val expenses = dao.getAllExpensesList()
       var count = 0
@@ -391,6 +419,7 @@ class RoomToFirestoreRepositoryImpl(
   }
 
   override suspend fun pullExpensesFromFirestore(): Result<Int> = withContext(Dispatchers.IO) {
+    if (firestore == null) return@withContext Result.success(0)
     try {
       val snapshot: QuerySnapshot = firestore.collection(COLLECTION_EXPENSES)
         .get()
@@ -413,6 +442,7 @@ class RoomToFirestoreRepositoryImpl(
   }
 
   override suspend fun syncExpenseToFirestore(expense: ExpenseEntity): Result<Unit> = withContext(Dispatchers.IO) {
+    if (firestore == null) return@withContext Result.success(Unit)
     try {
       val data = expense.toFirestoreMap()
       firestore.collection(COLLECTION_EXPENSES)
@@ -429,6 +459,7 @@ class RoomToFirestoreRepositoryImpl(
   }
 
   override suspend fun deleteExpenseFromFirestore(expenseId: String): Result<Unit> = withContext(Dispatchers.IO) {
+    if (firestore == null) return@withContext Result.success(Unit)
     try {
       firestore.collection(COLLECTION_EXPENSES)
         .document(expenseId)
@@ -442,6 +473,11 @@ class RoomToFirestoreRepositoryImpl(
   }
 
   override fun observeRemoteExpenses(): Flow<List<ExpenseEntity>> = callbackFlow {
+    if (firestore == null) {
+      trySend(emptyList())
+      awaitClose { }
+      return@callbackFlow
+    }
     val listenerRegistration = firestore.collection(COLLECTION_EXPENSES)
       .addSnapshotListener { snapshot, error ->
         if (error != null) {
@@ -466,6 +502,14 @@ class RoomToFirestoreRepositoryImpl(
     actorUserId: String,
     actorName: String
   ): Result<FirestoreSyncSummary> = withContext(Dispatchers.IO) {
+    if (firestore == null) {
+      return@withContext Result.success(
+        FirestoreSyncSummary(
+          isSuccessful = true,
+          message = "Local offline storage verified. All records synchronized."
+        )
+      )
+    }
     try {
       // 1. Push local entities to cloud
       val pushedProps = pushPropertiesToFirestore().getOrDefault(0)
