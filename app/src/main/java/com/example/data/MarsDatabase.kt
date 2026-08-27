@@ -38,7 +38,7 @@ abstract class MarsDatabase : RoomDatabase() {
                 MarsDatabase::class.java,
                 "mars_cashflow_database"
               )
-              .fallbackToDestructiveMigration(dropAllTables = true)
+              .fallbackToDestructiveMigration()
               .build()
           INSTANCE = instance
           instance

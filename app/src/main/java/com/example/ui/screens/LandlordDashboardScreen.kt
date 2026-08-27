@@ -346,57 +346,100 @@ fun LandlordDashboardScreen(
         }
       }
 
-      properties.forEach { prop ->
-        val propTenants = tenants.filter { it.propertyName == prop.name }
-        val propCollected = payments.filter { it.propertyName == prop.name }.sumOf { it.amount }
-        val propArrears = propTenants.sumOf { it.arrears }
-
+      if (properties.isEmpty()) {
         Card(
-          shape = RoundedCornerShape(20.dp),
+          shape = RoundedCornerShape(18.dp),
           colors = CardDefaults.cardColors(containerColor = MarsCard),
           border = BorderStroke(1.dp, Color(0xFFDFE8E3)),
-          elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+          modifier = Modifier.fillMaxWidth()
         ) {
           Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp)
           ) {
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically
+            Box(
+              modifier = Modifier.size(48.dp).background(MarsSurfaceLight, RoundedCornerShape(12.dp)),
+              contentAlignment = Alignment.Center
             ) {
-              Column {
-                Text(prop.name, fontSize = 16.sp, fontWeight = FontWeight.Black, color = MarsInk)
-                Text(prop.location, fontSize = 12.sp, color = MarsMuted)
-              }
-              Surface(shape = RoundedCornerShape(8.dp), color = MarsSurfaceLight) {
-                Text(
-                  "${propTenants.size} / ${prop.totalUnits} Units",
-                  fontSize = 11.sp,
-                  fontWeight = FontWeight.Bold,
-                  color = MarsGreen,
-                  modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-              }
+              Text("🏢", fontSize = 22.sp)
             }
-            HorizontalDivider(color = Color(0xFFEDF2F0))
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.SpaceBetween
+            Text(
+              "No Properties in Portfolio Yet",
+              fontWeight = FontWeight.Black,
+              fontSize = 15.sp,
+              color = MarsInk
+            )
+            Text(
+              "Register your first building or apartment block to start tracking occupancy, tenant rent roll, and arrears.",
+              fontSize = 12.sp,
+              color = MarsMuted,
+              textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Button(
+              onClick = { showAddPropertyDialog = true },
+              colors = ButtonDefaults.buttonColors(containerColor = MarsGreen),
+              shape = RoundedCornerShape(10.dp)
             ) {
-              Column {
-                Text("Collected", fontSize = 10.sp, color = MarsMuted, fontWeight = FontWeight.Bold)
-                Text(formatUgxShort(propCollected), fontSize = 14.sp, fontWeight = FontWeight.Black, color = MarsGreen)
+              Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+              Spacer(Modifier.width(6.dp))
+              Text("Register First Property", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+          }
+        }
+      } else {
+        properties.forEach { prop ->
+          val propTenants = tenants.filter { it.propertyName == prop.name }
+          val propCollected = payments.filter { it.propertyName == prop.name }.sumOf { it.amount }
+          val propArrears = propTenants.sumOf { it.arrears }
+
+          Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MarsCard),
+            border = BorderStroke(1.dp, Color(0xFFDFE8E3)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+          ) {
+            Column(
+              modifier = Modifier.padding(16.dp),
+              verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Column {
+                  Text(prop.name, fontSize = 16.sp, fontWeight = FontWeight.Black, color = MarsInk)
+                  Text(prop.location, fontSize = 12.sp, color = MarsMuted)
+                }
+                Surface(shape = RoundedCornerShape(8.dp), color = MarsSurfaceLight) {
+                  Text(
+                    "${propTenants.size} / ${prop.totalUnits} Units",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MarsGreen,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                  )
+                }
               }
-              Column(horizontalAlignment = Alignment.End) {
-                Text("Arrears", fontSize = 10.sp, color = MarsMuted, fontWeight = FontWeight.Bold)
-                Text(
-                  formatUgxShort(propArrears),
-                  fontSize = 14.sp,
-                  fontWeight = FontWeight.Black,
-                  color = if (propArrears > 0) MarsRed else MarsMuted
-                )
+              HorizontalDivider(color = Color(0xFFEDF2F0))
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+              ) {
+                Column {
+                  Text("Collected", fontSize = 10.sp, color = MarsMuted, fontWeight = FontWeight.Bold)
+                  Text(formatUgxShort(propCollected), fontSize = 14.sp, fontWeight = FontWeight.Black, color = MarsGreen)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                  Text("Arrears", fontSize = 10.sp, color = MarsMuted, fontWeight = FontWeight.Bold)
+                  Text(
+                    formatUgxShort(propArrears),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Black,
+                    color = if (propArrears > 0) MarsRed else MarsMuted
+                  )
+                }
               }
             }
           }

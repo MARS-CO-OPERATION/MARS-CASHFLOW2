@@ -240,39 +240,62 @@ fun CaretakerHubScreen(
 
           Text("Select Tenant", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MarsMuted)
 
-          // Tenant Selector Chips
-          Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            tenants.forEach { t ->
-              val isSelected = selectedTenantName == t.name
-              OutlinedButton(
-                onClick = {
-                  selectedTenantName = t.name
-                  payerPhoneInput = t.phone
-                  if (t.arrears > 0) amountInput = t.arrears.toString() else amountInput = t.rentDue.toString()
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                  containerColor = if (isSelected) MarsGreen.copy(alpha = 0.1f) else Color.White
-                ),
-                border = BorderStroke(1.dp, if (isSelected) MarsGreen else Color(0xFFDFE8E3))
+          // Tenant Selector Chips / Empty State
+          if (tenants.isEmpty()) {
+            Surface(
+              shape = RoundedCornerShape(12.dp),
+              color = MarsBg,
+              border = BorderStroke(1.dp, Color(0xFFDFE8E3)),
+              modifier = Modifier.fillMaxWidth()
+            ) {
+              Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
               ) {
-                Row(
-                  modifier = Modifier.fillMaxWidth(),
-                  horizontalArrangement = Arrangement.SpaceBetween,
-                  verticalAlignment = Alignment.CenterVertically
+                Text("No Registered Tenants", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MarsInk)
+                Text("Onboard a tenant to allocate rental units and record payments.", fontSize = 11.sp, color = MarsMuted)
+                TextButton(
+                  onClick = { showAddTenantDialog = true },
+                  contentPadding = PaddingValues(0.dp)
                 ) {
-                  Column(horizontalAlignment = Alignment.Start) {
-                    Text("${t.unitName} • ${t.name}", fontWeight = FontWeight.Bold, color = MarsInk, fontSize = 13.sp)
-                    Text(t.propertyName, fontSize = 11.sp, color = MarsMuted)
-                  }
-                  Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                      if (t.arrears > 0) "Arrears: UGX ${formatMoney(t.arrears)}" else "Fully Paid",
-                      fontSize = 11.sp,
-                      fontWeight = FontWeight.Bold,
-                      color = if (t.arrears > 0) MarsRed else MarsGreen
-                    )
+                  Text("+ Onboard Tenant Now", color = MarsGreen, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+              }
+            }
+          } else {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+              tenants.forEach { t ->
+                val isSelected = selectedTenantName == t.name
+                OutlinedButton(
+                  onClick = {
+                    selectedTenantName = t.name
+                    payerPhoneInput = t.phone
+                    if (t.arrears > 0) amountInput = t.arrears.toString() else amountInput = t.rentDue.toString()
+                  },
+                  modifier = Modifier.fillMaxWidth(),
+                  shape = RoundedCornerShape(12.dp),
+                  colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = if (isSelected) MarsGreen.copy(alpha = 0.1f) else Color.White
+                  ),
+                  border = BorderStroke(1.dp, if (isSelected) MarsGreen else Color(0xFFDFE8E3))
+                ) {
+                  Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                  ) {
+                    Column(horizontalAlignment = Alignment.Start) {
+                      Text("${t.unitName} • ${t.name}", fontWeight = FontWeight.Bold, color = MarsInk, fontSize = 13.sp)
+                      Text(t.propertyName, fontSize = 11.sp, color = MarsMuted)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                      Text(
+                        if (t.arrears > 0) "Arrears: UGX ${formatMoney(t.arrears)}" else "Fully Paid",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (t.arrears > 0) MarsRed else MarsGreen
+                      )
+                    }
                   }
                 }
               }

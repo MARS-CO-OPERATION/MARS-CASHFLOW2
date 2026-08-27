@@ -37,9 +37,28 @@ class MarsRepository(
 
   suspend fun seedDatabaseIfEmpty() {
     withContext(Dispatchers.IO) {
+      val existingAudits = dao.getAuditEventsList()
+      if (existingAudits.isEmpty()) {
+        // Log clean system initialization audit entry
+        dao.insertAuditEvent(
+          AuditEventEntity(
+            actorUserId = "SYSTEM",
+            actorName = "MARS Core",
+            eventType = "SYSTEM_INITIALIZED",
+            resourceType = "SYSTEM",
+            resourceId = "MARS_UG",
+            details = "Production ledger ready. Clean state initialized."
+          )
+        )
+      }
+    }
+  }
+
+  suspend fun seedSandboxDemoData() {
+    withContext(Dispatchers.IO) {
       val existingUsers = dao.getUserByPhone("0770000001")
       if (existingUsers == null) {
-        // 1. Seed Real Users with hashed PINs and emails
+        // 1. Seed Demo Users with hashed PINs and emails
         val landlordUser = UserEntity(
           id = "USER_LANDLORD_1",
           phoneNumber = "0770000001",
@@ -49,7 +68,7 @@ class MarsRepository(
           primaryRole = "LANDLORD",
           accountStatus = "ACTIVE",
           organizationId = "Katende Real Estate Holdings",
-          isDemo = false
+          isDemo = true
         )
         val managerUser = UserEntity(
           id = "USER_MGR_1",
@@ -60,7 +79,7 @@ class MarsRepository(
           primaryRole = "MANAGER",
           accountStatus = "ACTIVE",
           organizationId = "Kampala Property Services",
-          isDemo = false
+          isDemo = true
         )
         val tenantUser = UserEntity(
           id = "USER_TENANT_1",
@@ -71,7 +90,7 @@ class MarsRepository(
           primaryRole = "TENANT",
           accountStatus = "ACTIVE",
           organizationId = "Private Tenant",
-          isDemo = false
+          isDemo = true
         )
         val serviceProviderUser = UserEntity(
           id = "USER_SP_1",
@@ -82,7 +101,7 @@ class MarsRepository(
           primaryRole = "SERVICE_PROVIDER",
           accountStatus = "ACTIVE",
           organizationId = "Mukwaya Plumbing & Maintenance",
-          isDemo = false
+          isDemo = true
         )
         val multiRoleUser = UserEntity(
           id = "USER_MULTIROLE_1",
@@ -93,7 +112,7 @@ class MarsRepository(
           primaryRole = "MULTIROLE",
           accountStatus = "ACTIVE",
           organizationId = "Namubiru Group & Residence",
-          isDemo = false
+          isDemo = true
         )
 
         dao.insertUser(landlordUser)
@@ -459,10 +478,10 @@ class MarsRepository(
           AuditEventEntity(
             actorUserId = "SYSTEM",
             actorName = "MARS Core",
-            eventType = "SYSTEM_INITIALIZED",
+            eventType = "SANDBOX_SEEDED",
             resourceType = "SYSTEM",
             resourceId = "MARS_UG",
-            details = "Production database initialized with secure ledger accounts and Uganda telecom bridges."
+            details = "Sandbox test accounts and sample rental ledgers generated for testing."
           )
         )
       }

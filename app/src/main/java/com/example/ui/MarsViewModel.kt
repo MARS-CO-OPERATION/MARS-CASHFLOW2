@@ -400,4 +400,11 @@ class MarsViewModel(application: Application) : AndroidViewModel(application) {
       // Update in repository / dao
     }
   }
+
+  fun loadSandboxDemoData(onComplete: (() -> Unit)? = null) {
+    viewModelScope.launch {
+      repository.seedSandboxDemoData()
+      onComplete?.invoke()
+    }
+  }
 }

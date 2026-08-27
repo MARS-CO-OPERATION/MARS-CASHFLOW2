@@ -342,6 +342,72 @@ fun MainDashboardScreen(
         }
       }
 
+      // Smart Onboarding Guide for Clean Production Databases
+      if (properties.isEmpty()) {
+        Card(
+          shape = RoundedCornerShape(20.dp),
+          colors = CardDefaults.cardColors(containerColor = MarsSurfaceLight),
+          border = BorderStroke(1.dp, MarsGreen.copy(alpha = 0.35f)),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+          ) {
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+              Box(
+                modifier = Modifier.size(36.dp).background(MarsGreen, RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center
+              ) {
+                Text("🚀", fontSize = 16.sp)
+              }
+              Column {
+                Text("Welcome to MARS Cashflow", fontWeight = FontWeight.Black, fontSize = 14.sp, color = MarsInk)
+                Text("Set up your property portfolio and rental ledgers", fontSize = 11.sp, color = MarsMuted)
+              }
+            }
+            Text(
+              "Your ledger is clean and ready. Follow these 3 easy steps to start tracking rental cashflow:",
+              fontSize = 12.sp,
+              color = MarsInk
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+              Text("1. 🏢 Register your properties and total units in portfolio", fontSize = 11.sp, color = MarsInk, fontWeight = FontWeight.Medium)
+              Text("2. 👤 Add tenants, phone contacts, and monthly expected rent", fontSize = 11.sp, color = MarsInk, fontWeight = FontWeight.Medium)
+              Text("3. 💵 Record cash or Mobile Money payments to issue instant receipts", fontSize = 11.sp, color = MarsInk, fontWeight = FontWeight.Medium)
+            }
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+              Button(
+                onClick = { onNavigate("landlord") },
+                colors = ButtonDefaults.buttonColors(containerColor = MarsGreen),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.weight(1f)
+              ) {
+                Text("🏢 Add Property", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+              }
+              OutlinedButton(
+                onClick = {
+                  viewModel.loadSandboxDemoData {
+                    reminderFeedbackMessage = "Sample sandbox portfolio loaded for testing."
+                  }
+                },
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
+                modifier = Modifier.weight(1f)
+              ) {
+                Text("🧪 Load Demo", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MarsInk)
+              }
+            }
+          }
+        }
+      }
+
       // Filter Chips (Property & Timeframe)
       Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         LazyRow(
@@ -884,6 +950,41 @@ fun MainDashboardScreen(
                   }
                 }
               }
+            }
+          }
+        }
+      } else {
+        Surface(
+          shape = RoundedCornerShape(18.dp),
+          color = Color.White,
+          border = BorderStroke(1.dp, Color(0xFFDFE8E3)),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+          ) {
+            Box(
+              modifier = Modifier
+                .size(38.dp)
+                .background(MarsGreen.copy(alpha = 0.12f), RoundedCornerShape(10.dp)),
+              contentAlignment = Alignment.Center
+            ) {
+              Text("✅", fontSize = 18.sp)
+            }
+            Column {
+              Text(
+                if (tenants.isEmpty()) "No Tenant Arrears" else "All Accounts In Good Standing",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Black,
+                color = MarsInk
+              )
+              Text(
+                if (tenants.isEmpty()) "Register tenants in your properties to track rent balances and collection rates." else "Zero overdue balances. All tenants are up to date on their rent.",
+                fontSize = 11.sp,
+                color = MarsMuted
+              )
             }
           }
         }
