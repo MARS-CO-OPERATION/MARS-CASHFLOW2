@@ -3,11 +3,9 @@ import {
   LayoutDashboard,
   Building,
   Briefcase,
-  UserCheck,
+  MapPin,
+  Sparkles,
   History,
-  FileSpreadsheet,
-  BarChart2,
-  Wrench
 } from 'lucide-react';
 
 interface BottomNavProps {
@@ -18,10 +16,10 @@ interface BottomNavProps {
 export const BottomNav: React.FC<BottomNavProps> = ({ currentRoute, onNavigate }) => {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'property_map', label: 'Map', icon: MapPin },
+    { id: 'workspace_hub', label: 'Workspace', icon: Sparkles },
     { id: 'landlord', label: 'Landlord', icon: Building },
     { id: 'caretaker', label: 'Caretaker', icon: Briefcase },
-    { id: 'tenant', label: 'Tenant', icon: UserCheck },
-    { id: 'timeline', label: 'Audit Trail', icon: History },
   ];
 
   return (

@@ -22,6 +22,8 @@ import { RecurringMaintenanceScreen } from './screens/RecurringMaintenanceScreen
 import { MultiRoleSelectionScreen } from './screens/MultiRoleSelectionScreen';
 import { ReceiptDetailScreen } from './screens/ReceiptDetailScreen';
 import { FaqScreen } from './screens/FaqScreen';
+import { PropertyMapScreen } from './screens/PropertyMapScreen';
+import { WorkspaceHubScreen } from './screens/WorkspaceHubScreen';
 
 const MainAppContent: React.FC = () => {
   const { currentUser } = useMars();
@@ -117,6 +119,10 @@ const MainAppContent: React.FC = () => {
             onNavigate={handleNavigate}
           />
         );
+      case 'property_map':
+        return <PropertyMapScreen onNavigate={handleNavigate} />;
+      case 'workspace_hub':
+        return <WorkspaceHubScreen />;
       case 'faq':
         return <FaqScreen onNavigate={handleNavigate} />;
       default:

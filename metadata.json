@@ -1,6 +1,6 @@
 {
   "name": "MARS Cashflow",
-  "description": "MARS Cashflow connects landlords, caretakers and tenants in one simple place — rent payments, receipts, arrears, expenses and property activity.",
-  "requestFramePermissions": [],
+  "description": "MARS Cashflow connects landlords, caretakers, and tenants in Uganda with real-time rent ledgers, Google Maps portfolio visualization, and Google Workspace integrations (Drive, Gmail, Calendar, Docs, Sheets, Slides, Forms, Tasks).",
+  "requestFramePermissions": ["geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

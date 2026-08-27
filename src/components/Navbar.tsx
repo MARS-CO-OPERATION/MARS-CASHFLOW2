@@ -144,6 +144,26 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, onNavigate }) => {
             👤 Tenant
           </button>
           <button
+            onClick={() => onNavigate('property_map')}
+            className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 ${
+              currentRoute === 'property_map'
+                ? 'bg-[#101915] text-white font-bold'
+                : 'hover:bg-[#E2F8EF] hover:text-[#17231E]'
+            }`}
+          >
+            <span>📍 Map</span>
+          </button>
+          <button
+            onClick={() => onNavigate('workspace_hub')}
+            className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 ${
+              currentRoute === 'workspace_hub'
+                ? 'bg-[#101915] text-white font-bold'
+                : 'hover:bg-[#E2F8EF] hover:text-[#17231E]'
+            }`}
+          >
+            <span>☁️ Workspace</span>
+          </button>
+          <button
             onClick={() => onNavigate('income_expense_chart')}
             className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 ${
               currentRoute === 'income_expense_chart'

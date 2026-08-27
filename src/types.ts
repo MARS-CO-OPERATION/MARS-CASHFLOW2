@@ -51,7 +51,11 @@ export interface UserEntity {
   phoneNumber: string;
   email: string;
   displayName: string;
+  photoUrl?: string;
   pinHash?: string;
+  googleUid?: string;
+  googleEmail?: string;
+  authProvider?: 'GOOGLE' | 'PASSWORD' | 'DEMO';
   primaryRole: UserRoleKey;
   accountStatus: 'ACTIVE' | 'SUSPENDED' | 'PENDING_VERIFICATION';
   isDemo: boolean;
@@ -240,3 +244,45 @@ export interface BudgetCategory {
   spent: number;
   color: string;
 }
+
+export interface MarsBackupData {
+  version: string;
+  exportedAt: string;
+  timestamp: number;
+  app: string;
+  exportedBy: {
+    name: string;
+    email: string;
+    role: string;
+  };
+  summary: {
+    propertiesCount: number;
+    tenantsCount: number;
+    paymentsCount: number;
+    expensesCount: number;
+    maintenanceCount: number;
+    serviceProvidersCount: number;
+    tasksCount: number;
+    auditEventsCount: number;
+  };
+  properties: PropertyEntity[];
+  tenants: TenantEntity[];
+  payments: PaymentEntity[];
+  expenses: ExpenseEntity[];
+  maintenance: MaintenanceEntity[];
+  serviceProviders: ServiceProviderEntity[];
+  recurringTasks: RecurringTask[];
+  auditTrail: AuditEventEntity[];
+}
+
+export interface GoogleDriveBackupFileItem {
+  id: string;
+  name: string;
+  mimeType: string;
+  webViewLink?: string;
+  size?: string;
+  modifiedTime?: string;
+  summary?: MarsBackupData['summary'];
+  exportedAt?: string;
+}
+

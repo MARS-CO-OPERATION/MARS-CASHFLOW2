@@ -431,6 +431,8 @@ export const MainDashboardScreen: React.FC<MainDashboardScreenProps> = ({
         <h3 className="font-extrabold text-sm text-[#17231E]">Operations & Management Hub</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
+            { id: 'property_map', icon: '📍', label: 'Property & Field Map', desc: 'Google Maps platform' },
+            { id: 'workspace_hub', icon: '☁️', label: 'Google Workspace', desc: 'Drive, Gmail, Docs' },
             { id: 'landlord', icon: '👑', label: 'Landlord Master', desc: 'Portfolio oversight' },
             { id: 'caretaker', icon: '👨🏾‍💼', label: 'Caretaker Desk', desc: 'Ground collections' },
             { id: 'tenant', icon: '👤', label: 'Tenant Portal', desc: 'Self-service view' },
