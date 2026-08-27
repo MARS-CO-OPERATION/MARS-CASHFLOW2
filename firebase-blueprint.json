@@ -1,0 +1,272 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "System user account with role-based access metadata",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "phoneNumber": { "type": "string", "maxLength": 32 },
+        "name": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 150 },
+        "primaryRole": { "type": "string", "enum": ["LANDLORD", "MANAGER", "TENANT", "SERVICE_PROVIDER", "MULTIROLE", "ADMIN"] },
+        "accountStatus": { "type": "string", "enum": ["ACTIVE", "INACTIVE", "SUSPENDED"] },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "isDemo": { "type": "boolean" },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "phoneNumber", "name", "primaryRole", "accountStatus"]
+    },
+    "Property": {
+      "title": "Property",
+      "description": "Real estate property asset owned by landlord and managed by caretakers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "maxLength": 120 },
+        "location": { "type": "string", "maxLength": 150 },
+        "totalUnits": { "type": "number" },
+        "occupancyRate": { "type": "number" },
+        "ownerUserId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "managerIds": { "type": "array" },
+        "caretakerPhone": { "type": "string", "maxLength": 32 },
+        "monthlyRevenue": { "type": "number" },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "name", "location", "totalUnits", "ownerUserId"]
+    },
+    "Unit": {
+      "title": "Unit",
+      "description": "Individual rentable unit or apartment in a property",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "propertyId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "propertyName": { "type": "string", "maxLength": 120 },
+        "unitName": { "type": "string", "maxLength": 64 },
+        "unitNumber": { "type": "string", "maxLength": 32 },
+        "monthlyRent": { "type": "number" },
+        "status": { "type": "string", "enum": ["OCCUPIED", "VACANT", "MAINTENANCE"] },
+        "currentTenantId": { "type": "string", "maxLength": 128 },
+        "currentTenantName": { "type": "string", "maxLength": 100 },
+        "tenantUserId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "propertyId", "unitName", "monthlyRent", "status"]
+    },
+    "Tenant": {
+      "title": "Tenant",
+      "description": "Tenant lease record with rent dues and arrears status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128 },
+        "propertyId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "propertyName": { "type": "string", "maxLength": 120 },
+        "unitId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "unitName": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "email": { "type": "string", "maxLength": 150 },
+        "nationalId": { "type": "string", "maxLength": 64 },
+        "rentDue": { "type": "number" },
+        "arrears": { "type": "number" },
+        "leaseStart": { "type": "string", "maxLength": 64 },
+        "leaseEnd": { "type": "string", "maxLength": 64 },
+        "depositPaid": { "type": "number" },
+        "paymentStatus": { "type": "string", "enum": ["PAID", "DUE", "OVERDUE", "PARTIAL"] },
+        "emergencyContact": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "propertyId", "unitId", "name", "phone", "rentDue", "paymentStatus"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Tamper-evident, immutable rent collection and ledger transaction",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "receiptNumber": { "type": "string", "maxLength": 64 },
+        "tenantId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "tenantName": { "type": "string", "maxLength": 100 },
+        "propertyId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "propertyName": { "type": "string", "maxLength": 120 },
+        "unitId": { "type": "string", "maxLength": 128 },
+        "unitName": { "type": "string", "maxLength": 64 },
+        "amount": { "type": "number" },
+        "amountWords": { "type": "string", "maxLength": 200 },
+        "paymentMethod": { "type": "string", "enum": ["MTN_MOMO", "AIRTEL_MONEY", "CASH", "BANK_TRANSFER"] },
+        "phoneNumber": { "type": "string", "maxLength": 32 },
+        "transactionRef": { "type": "string", "maxLength": 100 },
+        "recordedByUserId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "recordedByName": { "type": "string", "maxLength": 100 },
+        "date": { "type": "string", "maxLength": 64 },
+        "month": { "type": "string", "maxLength": 32 },
+        "year": { "type": "number" },
+        "notes": { "type": "string", "maxLength": 500 },
+        "paymentTimestamp": { "type": "number" },
+        "syncStatus": { "type": "string", "enum": ["SYNCED", "PENDING", "FAILED"] },
+        "reversalReason": { "type": "string", "maxLength": 255 },
+        "isReconciled": { "type": "boolean" },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "tenantId", "propertyId", "amount", "paymentMethod", "recordedByUserId"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "Property operating expense or utility disbursement",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "propertyId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "propertyName": { "type": "string", "maxLength": 120 },
+        "category": { "type": "string", "maxLength": 64 },
+        "description": { "type": "string", "maxLength": 500 },
+        "amount": { "type": "number" },
+        "date": { "type": "string", "maxLength": 64 },
+        "recordedByUserId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "recordedByName": { "type": "string", "maxLength": 100 },
+        "vendor": { "type": "string", "maxLength": 120 },
+        "receiptImageUrl": { "type": "string", "maxLength": 500 },
+        "paymentMethod": { "type": "string", "maxLength": 64 },
+        "expenseTimestamp": { "type": "number" },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "propertyId", "category", "amount", "recordedByUserId"]
+    },
+    "Maintenance": {
+      "title": "Maintenance",
+      "description": "Facility repair work order and contractor ticket",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "propertyId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "propertyName": { "type": "string", "maxLength": 120 },
+        "unitId": { "type": "string", "maxLength": 128 },
+        "unitName": { "type": "string", "maxLength": 64 },
+        "tenantId": { "type": "string", "maxLength": 128 },
+        "tenantName": { "type": "string", "maxLength": 100 },
+        "tenantPhone": { "type": "string", "maxLength": 32 },
+        "title": { "type": "string", "maxLength": 150 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "category": { "type": "string", "maxLength": 64 },
+        "priority": { "type": "string", "enum": ["Low", "Medium", "High", "Emergency", "LOW", "MEDIUM", "HIGH", "EMERGENCY"] },
+        "status": { "type": "string", "enum": ["Pending", "In Progress", "Resolved", "Cancelled", "PENDING", "IN_PROGRESS", "RESOLVED", "CANCELLED"] },
+        "assignedProviderId": { "type": "string", "maxLength": 128 },
+        "assignedProviderName": { "type": "string", "maxLength": 100 },
+        "estimatedCost": { "type": "number" },
+        "actualCost": { "type": "number" },
+        "date": { "type": "string", "maxLength": 64 },
+        "reportedTimestamp": { "type": "number" },
+        "completedAt": { "type": "string", "maxLength": 64 },
+        "completionNotes": { "type": "string", "maxLength": 500 },
+        "notes": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "propertyId", "title", "category", "priority", "status"]
+    },
+    "Receipt": {
+      "title": "Receipt",
+      "description": "Immutable digital receipt document issued upon rent settlement",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "paymentId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "receiptNumber": { "type": "string", "maxLength": 64 },
+        "tenantId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "tenantName": { "type": "string", "maxLength": 100 },
+        "propertyId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "propertyName": { "type": "string", "maxLength": 120 },
+        "unitName": { "type": "string", "maxLength": 64 },
+        "amount": { "type": "number" },
+        "paymentMethod": { "type": "string", "maxLength": 64 },
+        "transactionRef": { "type": "string", "maxLength": 100 },
+        "issuedAt": { "type": "string", "maxLength": 64 },
+        "issuedBy": { "type": "string", "maxLength": 100 },
+        "qrVerificationCode": { "type": "string", "maxLength": 255 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "paymentId", "receiptNumber", "tenantId", "propertyId", "amount", "qrVerificationCode"]
+    },
+    "AuditEvent": {
+      "title": "AuditEvent",
+      "description": "Immutable audit log event capturing all system operations and financial events",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorUserId": { "type": "string", "maxLength": 128 },
+        "actorName": { "type": "string", "maxLength": 100 },
+        "eventType": { "type": "string", "maxLength": 100 },
+        "resourceType": { "type": "string", "maxLength": 100 },
+        "resourceId": { "type": "string", "maxLength": 128 },
+        "details": { "type": "string", "maxLength": 1000 },
+        "timestamp": { "type": "number" },
+        "ipAddress": { "type": "string", "maxLength": 64 },
+        "deviceInfo": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "actorUserId", "eventType", "resourceType", "resourceId", "details"]
+    },
+    "ServiceProvider": {
+      "title": "ServiceProvider",
+      "description": "Registered maintenance professional or contractor",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "email": { "type": "string", "maxLength": 150 },
+        "serviceType": { "type": "string", "enum": ["Plumbing", "Electrical", "Security", "Fumigation", "General", "Masonry", "Painting"] },
+        "rating": { "type": "number" },
+        "status": { "type": "string", "enum": ["Available", "On Job", "Unavailable"] },
+        "rate": { "type": "string", "maxLength": 100 },
+        "assignedProperty": { "type": "string", "maxLength": 120 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "name", "phone", "serviceType", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile with role and organization assignment"
+    },
+    "/properties/{propertyId}": {
+      "schema": "Property",
+      "description": "Real estate property managed by landlords and assigned caretakers"
+    },
+    "/units/{unitId}": {
+      "schema": "Unit",
+      "description": "Rental units within a property"
+    },
+    "/tenants/{tenantId}": {
+      "schema": "Tenant",
+      "description": "Tenant registry and lease assignment"
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Immutable rent payment records and ledger entries"
+    },
+    "/expenses/{expenseId}": {
+      "schema": "Expense",
+      "description": "Operating expenses and maintenance outflows"
+    },
+    "/maintenance/{ticketId}": {
+      "schema": "Maintenance",
+      "description": "Maintenance work orders and contractor repair tickets"
+    },
+    "/receipts/{receiptId}": {
+      "schema": "Receipt",
+      "description": "Immutable official receipts for rent and utility payments"
+    },
+    "/audit_events/{eventId}": {
+      "schema": "AuditEvent",
+      "description": "Immutable security and accounting audit log stream"
+    },
+    "/service_providers/{providerId}": {
+      "schema": "ServiceProvider",
+      "description": "Directory of verified contractors and maintenance technicians"
+    }
+  }
+}

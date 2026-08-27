@@ -3,81 +3,76 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // =========================================================================
-    // HELPER FUNCTIONS & ROLE VERIFICATION
+    // 0. GLOBAL CATCH-ALL & CORE HELPER FUNCTIONS
     // =========================================================================
 
-    function isAuthenticated() {
+    // Global Safety Net: Default deny all unmapped paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    function isUser(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function hasUserDoc() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
     function getUserDoc() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    function hasUserDoc() {
-      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
-    }
-
     function getUserRole() {
-      return hasUserDoc()
+      return hasUserDoc() && ('primaryRole' in getUserDoc())
         ? getUserDoc().primaryRole
-        : (request.auth.token.role != null ? request.auth.token.role : '');
-    }
-
-    function getUserWorkspace() {
-      return hasUserDoc() && getUserDoc().organizationId != null
-        ? getUserDoc().organizationId
         : '';
     }
 
-    function isWorkspaceMember(orgId) {
-      return isAuthenticated() && (
-        orgId == null ||
-        orgId == '' ||
-        getUserWorkspace() == '' ||
-        getUserWorkspace() == orgId
-      );
-    }
-
     function isLandlord() {
-      return getUserRole() == 'LANDLORD' || getUserRole() == 'MULTIROLE' || getUserRole() == 'ADMIN';
+      return isSignedIn() && (getUserRole() == 'LANDLORD' || getUserRole() == 'MULTIROLE' || getUserRole() == 'ADMIN');
     }
 
     function isManager() {
-      return getUserRole() == 'MANAGER' || getUserRole() == 'MULTIROLE' || getUserRole() == 'ADMIN';
+      return isSignedIn() && (getUserRole() == 'MANAGER' || getUserRole() == 'MULTIROLE' || getUserRole() == 'ADMIN');
     }
 
     function isContractor() {
-      return getUserRole() == 'CONTRACTOR' || getUserRole() == 'SERVICE_PROVIDER';
+      return isSignedIn() && (getUserRole() == 'CONTRACTOR' || getUserRole() == 'SERVICE_PROVIDER');
     }
 
     function isTenant() {
-      return getUserRole() == 'TENANT';
+      return isSignedIn() && (getUserRole() == 'TENANT');
     }
 
-    // --- Property Authorization Checks ---
+    // Property ownership and management relations
     function isPropertyOwner(propertyId) {
-      return isAuthenticated() &&
+      return isSignedIn() &&
         exists(/databases/$(database)/documents/properties/$(propertyId)) &&
-        (
-          get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerUserId == request.auth.uid ||
-          get(/databases/$(database)/documents/properties/$(propertyId)).data.landlordId == request.auth.uid ||
-          get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId == request.auth.uid
-        );
+        get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerUserId == request.auth.uid;
     }
 
     function isPropertyManager(propertyId) {
-      return isAuthenticated() &&
+      return isSignedIn() &&
         exists(/databases/$(database)/documents/properties/$(propertyId)) &&
         (
-          (get(/databases/$(database)/documents/properties/$(propertyId)).data.managerIds != null &&
-           request.auth.uid in get(/databases/$(database)/documents/properties/$(propertyId)).data.managerIds) ||
-          (get(/databases/$(database)/documents/properties/$(propertyId)).data.managerPhone != null &&
-           get(/databases/$(database)/documents/properties/$(propertyId)).data.managerPhone == request.auth.token.phone_number)
+          (('managerIds' in get(/databases/$(database)/documents/properties/$(propertyId)).data) &&
+           (request.auth.uid in get(/databases/$(database)/documents/properties/$(propertyId)).data.managerIds)) ||
+          (('caretakerPhone' in get(/databases/$(database)/documents/properties/$(propertyId)).data) &&
+           request.auth.token.phone_number != null &&
+           get(/databases/$(database)/documents/properties/$(propertyId)).data.caretakerPhone == request.auth.token.phone_number)
         );
     }
 
@@ -86,240 +81,395 @@ service cloud.firestore {
     }
 
     // =========================================================================
+    // SCHEMA VALIDATION BLUEPRINTS
+    // =========================================================================
+
+    function isValidUser(data) {
+      return data.id is string && isValidId(data.id) &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+        data.phoneNumber is string && data.phoneNumber.size() <= 32 &&
+        data.primaryRole in ['LANDLORD', 'MANAGER', 'TENANT', 'SERVICE_PROVIDER', 'MULTIROLE', 'ADMIN'] &&
+        data.accountStatus in ['ACTIVE', 'INACTIVE', 'SUSPENDED'] &&
+        (!('email' in data) || (data.email is string && data.email.size() <= 150)) &&
+        (!('organizationId' in data) || (data.organizationId is string && data.organizationId.size() <= 128)) &&
+        (!('isDemo' in data) || data.isDemo is bool);
+    }
+
+    function isValidProperty(data) {
+      return data.id is string && isValidId(data.id) &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 120 &&
+        data.location is string && data.location.size() <= 150 &&
+        data.totalUnits is number && data.totalUnits >= 0 &&
+        data.ownerUserId is string && isValidId(data.ownerUserId) &&
+        (!('occupancyRate' in data) || data.occupancyRate is number) &&
+        (!('caretakerPhone' in data) || (data.caretakerPhone is string && data.caretakerPhone.size() <= 32)) &&
+        (!('monthlyRevenue' in data) || data.monthlyRevenue is number) &&
+        (!('managerIds' in data) || (data.managerIds is list && data.managerIds.size() <= 50));
+    }
+
+    function isValidUnit(data) {
+      return data.id is string && isValidId(data.id) &&
+        data.propertyId is string && isValidId(data.propertyId) &&
+        data.unitName is string && data.unitName.size() > 0 && data.unitName.size() <= 64 &&
+        data.monthlyRent is number && data.monthlyRent >= 0 &&
+        data.status in ['OCCUPIED', 'VACANT', 'MAINTENANCE'] &&
+        (!('unitNumber' in data) || (data.unitNumber is string && data.unitNumber.size() <= 32)) &&
+        (!('currentTenantId' in data) || (data.currentTenantId is string && data.currentTenantId.size() <= 128)) &&
+        (!('currentTenantName' in data) || (data.currentTenantName is string && data.currentTenantName.size() <= 100)) &&
+        (!('tenantUserId' in data) || (data.tenantUserId is string && data.tenantUserId.size() <= 128));
+    }
+
+    function isValidTenant(data) {
+      return data.id is string && isValidId(data.id) &&
+        data.propertyId is string && isValidId(data.propertyId) &&
+        data.unitId is string && isValidId(data.unitId) &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+        data.phone is string && data.phone.size() <= 32 &&
+        data.rentDue is number &&
+        data.paymentStatus in ['PAID', 'DUE', 'OVERDUE', 'PARTIAL'] &&
+        (!('userId' in data) || (data.userId is string && data.userId.size() <= 128)) &&
+        (!('arrears' in data) || data.arrears is number) &&
+        (!('depositPaid' in data) || data.depositPaid is number) &&
+        (!('email' in data) || (data.email is string && data.email.size() <= 150)) &&
+        (!('nationalId' in data) || (data.nationalId is string && data.nationalId.size() <= 64)) &&
+        (!('emergencyContact' in data) || (data.emergencyContact is string && data.emergencyContact.size() <= 100));
+    }
+
+    function isValidPayment(data) {
+      return data.id is string && isValidId(data.id) &&
+        data.tenantId is string && isValidId(data.tenantId) &&
+        data.propertyId is string && isValidId(data.propertyId) &&
+        data.amount is number && data.amount > 0 &&
+        data.paymentMethod in ['MTN_MOMO', 'AIRTEL_MONEY', 'CASH', 'BANK_TRANSFER'] &&
+        data.recordedByUserId is string && isValidId(data.recordedByUserId) &&
+        (!('receiptNumber' in data) || (data.receiptNumber is string && data.receiptNumber.size() <= 64)) &&
+        (!('notes' in data) || (data.notes is string && data.notes.size() <= 500)) &&
+        (!('transactionRef' in data) || (data.transactionRef is string && data.transactionRef.size() <= 100)) &&
+        (!('syncStatus' in data) || data.syncStatus in ['SYNCED', 'PENDING', 'FAILED']) &&
+        (!('reversalReason' in data) || (data.reversalReason is string && data.reversalReason.size() <= 255)) &&
+        (!('isReconciled' in data) || data.isReconciled is bool);
+    }
+
+    function isValidExpense(data) {
+      return data.id is string && isValidId(data.id) &&
+        data.propertyId is string && isValidId(data.propertyId) &&
+        data.category is string && data.category.size() <= 64 &&
+        data.amount is number && data.amount > 0 &&
+        data.recordedByUserId is string && isValidId(data.recordedByUserId) &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 500)) &&
+        (!('vendor' in data) || (data.vendor is string && data.vendor.size() <= 120));
+    }
+
+    function isValidMaintenance(data) {
+      return data.id is string && isValidId(data.id) &&
+        data.propertyId is string && isValidId(data.propertyId) &&
+        data.title is string && data.title.size() > 0 && data.title.size() <= 150 &&
+        data.priority in ['Low', 'Medium', 'High', 'Emergency', 'LOW', 'MEDIUM', 'HIGH', 'EMERGENCY'] &&
+        data.status in ['Pending', 'In Progress', 'Resolved', 'Cancelled', 'PENDING', 'IN_PROGRESS', 'RESOLVED', 'CANCELLED'] &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 1000)) &&
+        (!('assignedProviderId' in data) || (data.assignedProviderId is string && data.assignedProviderId.size() <= 128)) &&
+        (!('estimatedCost' in data) || data.estimatedCost is number) &&
+        (!('actualCost' in data) || data.actualCost is number) &&
+        (!('completionNotes' in data) || (data.completionNotes is string && data.completionNotes.size() <= 500));
+    }
+
+    function isValidReceipt(data) {
+      return data.id is string && isValidId(data.id) &&
+        data.paymentId is string && isValidId(data.paymentId) &&
+        data.receiptNumber is string && data.receiptNumber.size() <= 64 &&
+        data.tenantId is string && isValidId(data.tenantId) &&
+        data.propertyId is string && isValidId(data.propertyId) &&
+        data.amount is number && data.amount > 0 &&
+        data.qrVerificationCode is string && data.qrVerificationCode.size() <= 255;
+    }
+
+    function isValidAuditEvent(data) {
+      return data.id is string && isValidId(data.id) &&
+        data.actorUserId is string && isValidId(data.actorUserId) &&
+        data.eventType is string && data.eventType.size() <= 100 &&
+        data.resourceType is string && data.resourceType.size() <= 100 &&
+        data.resourceId is string && data.resourceId.size() <= 128 &&
+        data.details is string && data.details.size() <= 1000;
+    }
+
+    function isValidServiceProvider(data) {
+      return data.id is string && isValidId(data.id) &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+        data.phone is string && data.phone.size() <= 32 &&
+        data.serviceType in ['Plumbing', 'Electrical', 'Security', 'Fumigation', 'General', 'Masonry', 'Painting'] &&
+        data.status in ['Available', 'On Job', 'Unavailable'] &&
+        (!('rate' in data) || (data.rate is string && data.rate.size() <= 100)) &&
+        (!('assignedProperty' in data) || (data.assignedProperty is string && data.assignedProperty.size() <= 120));
+    }
+
+    // =========================================================================
     // 1. USER PROFILES & ACCOUNTS
     // =========================================================================
-    // Users can access their own document; Landlords/Managers in the same workspace can read team profiles
     match /users/{userId} {
-      allow read: if isAuthenticated() && (
-        request.auth.uid == userId ||
-        (isLandlord() && isWorkspaceMember(resource.data.organizationId)) ||
-        (isManager() && isWorkspaceMember(resource.data.organizationId))
-      );
-      allow create: if isAuthenticated() && request.auth.uid == userId;
-      allow update: if isAuthenticated() && (
-        request.auth.uid == userId ||
-        (isLandlord() && isWorkspaceMember(resource.data.organizationId))
+      allow get: if isSignedIn() && (request.auth.uid == userId || isLandlord() || isManager());
+      allow list: if isSignedIn() && (isLandlord() || isManager());
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming());
+      allow update: if isSignedIn() && isValidUser(incoming()) && (
+        (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'phoneNumber'])) ||
+        (isLandlord() && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'phoneNumber', 'primaryRole', 'accountStatus', 'organizationId']))
       );
       allow delete: if false; // Strict soft-deactivation only
     }
 
     // =========================================================================
-    // 2. ROLE & WORKSPACE ASSIGNMENTS
+    // 2. PROPERTIES
     // =========================================================================
-    match /role_assignments/{assignmentId} {
-      allow read: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid ||
-        (isLandlord() && isWorkspaceMember(resource.data.organizationId)) ||
-        (isManager() && isWorkspaceMember(resource.data.organizationId))
-      );
-      allow create, update: if isAuthenticated() && (
-        isLandlord() ||
-        request.auth.uid == request.resource.data.userId
-      );
-      allow delete: if isAuthenticated() && isLandlord();
-    }
-
-    match /roleAssignments/{assignmentId} {
-      allow read: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid ||
-        (isLandlord() && isWorkspaceMember(resource.data.organizationId)) ||
-        (isManager() && isWorkspaceMember(resource.data.organizationId))
-      );
-      allow create, update: if isAuthenticated() && (
-        isLandlord() ||
-        request.auth.uid == request.resource.data.userId
-      );
-      allow delete: if isAuthenticated() && isLandlord();
-    }
-
-    // =========================================================================
-    // 3. PROPERTIES
-    // =========================================================================
-    // Landlords can manage their assigned properties; Managers can view & update assigned properties
     match /properties/{propertyId} {
-      allow read: if isAuthenticated() && (
+      allow get: if isSignedIn() && isValidId(propertyId) && (
         resource.data.ownerUserId == request.auth.uid ||
-        resource.data.landlordId == request.auth.uid ||
-        resource.data.ownerId == request.auth.uid ||
-        (resource.data.managerIds != null && request.auth.uid in resource.data.managerIds) ||
+        (('managerIds' in resource.data) && request.auth.uid in resource.data.managerIds) ||
         isPropertyOwner(propertyId) ||
-        (isLandlord() && isWorkspaceMember(resource.data.organizationId))
+        isLandlord()
       );
-      allow create: if isAuthenticated() && (
-        isLandlord() || isManager()
-      ) && (
-        request.resource.data.ownerUserId == request.auth.uid ||
-        request.resource.data.landlordId == request.auth.uid ||
-        request.resource.data.ownerId == request.auth.uid
-      );
-      allow update: if isAuthenticated() && (
+      allow list: if isSignedIn() && (
         resource.data.ownerUserId == request.auth.uid ||
-        resource.data.landlordId == request.auth.uid ||
-        resource.data.ownerId == request.auth.uid ||
-        isPropertyManager(propertyId)
+        (('managerIds' in resource.data) && request.auth.uid in resource.data.managerIds) ||
+        isLandlord()
       );
-      allow delete: if isAuthenticated() && (
-        resource.data.ownerUserId == request.auth.uid ||
-        resource.data.landlordId == request.auth.uid ||
-        resource.data.ownerId == request.auth.uid
+      allow create: if isSignedIn() && isValidId(propertyId) &&
+        (isLandlord() || isManager()) &&
+        incoming().ownerUserId == request.auth.uid &&
+        isValidProperty(incoming());
+      allow update: if isSignedIn() && isValidId(propertyId) && isValidProperty(incoming()) && (
+        (resource.data.ownerUserId == request.auth.uid && incoming().ownerUserId == existing().ownerUserId) ||
+        (isPropertyManager(propertyId) && incoming().diff(existing()).affectedKeys().hasOnly(['occupancyRate', 'caretakerPhone', 'monthlyRevenue']))
       );
+      allow delete: if isSignedIn() && isValidId(propertyId) && resource.data.ownerUserId == request.auth.uid;
     }
 
     // =========================================================================
-    // 4. UNITS
+    // 3. UNITS
     // =========================================================================
     match /units/{unitId} {
-      allow read: if isAuthenticated() && (
+      allow get: if isSignedIn() && isValidId(unitId) && (
         isAuthorizedForProperty(resource.data.propertyId) ||
-        resource.data.currentTenantId == request.auth.uid ||
-        resource.data.tenantUserId == request.auth.uid
+        (('tenantUserId' in resource.data) && resource.data.tenantUserId == request.auth.uid) ||
+        (('currentTenantId' in resource.data) && resource.data.currentTenantId == request.auth.uid)
       );
-      allow create, update: if isAuthenticated() && isAuthorizedForProperty(request.resource.data.propertyId);
-      allow delete: if isAuthenticated() && isPropertyOwner(resource.data.propertyId);
+      allow list: if isSignedIn() && (
+        (('tenantUserId' in resource.data) && resource.data.tenantUserId == request.auth.uid) ||
+        (('currentTenantId' in resource.data) && resource.data.currentTenantId == request.auth.uid) ||
+        isLandlord() ||
+        isManager()
+      );
+      allow create: if isSignedIn() && isValidId(unitId) &&
+        isAuthorizedForProperty(incoming().propertyId) &&
+        isValidUnit(incoming());
+      allow update: if isSignedIn() && isValidId(unitId) && isValidUnit(incoming()) && (
+        (isPropertyOwner(existing().propertyId) && incoming().propertyId == existing().propertyId) ||
+        (isPropertyManager(existing().propertyId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'currentTenantId', 'currentTenantName', 'tenantUserId']))
+      );
+      allow delete: if isSignedIn() && isValidId(unitId) && isPropertyOwner(resource.data.propertyId);
     }
 
     // =========================================================================
-    // 5. TENANTS & LEASES
+    // 4. TENANTS & LEASE REGISTRY
     // =========================================================================
-    // Tenants can read their own lease & profile; Landlords/Managers access their property tenants
     match /tenants/{tenantId} {
-      allow read: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid ||
+      allow get: if isSignedIn() && isValidId(tenantId) && (
         resource.data.id == request.auth.uid ||
-        (resource.data.phone != null && resource.data.phone == request.auth.token.phone_number) ||
+        (('userId' in resource.data) && resource.data.userId == request.auth.uid) ||
         isAuthorizedForProperty(resource.data.propertyId)
       );
-      allow create: if isAuthenticated() && (
-        isAuthorizedForProperty(request.resource.data.propertyId) ||
-        request.resource.data.userId == request.auth.uid
+      allow list: if isSignedIn() && (
+        resource.data.id == request.auth.uid ||
+        (('userId' in resource.data) && resource.data.userId == request.auth.uid) ||
+        isLandlord() ||
+        isManager()
       );
-      allow update: if isAuthenticated() && (
-        isAuthorizedForProperty(resource.data.propertyId) ||
-        (resource.data.userId == request.auth.uid &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phone', 'email', 'name', 'emergencyContact']))
+      allow create: if isSignedIn() && isValidId(tenantId) &&
+        isAuthorizedForProperty(incoming().propertyId) &&
+        isValidTenant(incoming());
+      allow update: if isSignedIn() && isValidId(tenantId) && isValidTenant(incoming()) && (
+        (isAuthorizedForProperty(existing().propertyId) && incoming().propertyId == existing().propertyId) ||
+        ((('userId' in existing()) && existing().userId == request.auth.uid) &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['phone', 'email', 'name', 'emergencyContact']))
       );
-      allow delete: if isAuthenticated() && isPropertyOwner(resource.data.propertyId);
-    }
-
-    match /leases/{leaseId} {
-      allow read: if isAuthenticated() && (
-        resource.data.tenantId == request.auth.uid ||
-        isAuthorizedForProperty(resource.data.propertyId)
-      );
-      allow create, update: if isAuthenticated() && isAuthorizedForProperty(request.resource.data.propertyId);
-      allow delete: if isAuthenticated() && isPropertyOwner(resource.data.propertyId);
+      allow delete: if isSignedIn() && isValidId(tenantId) && isPropertyOwner(resource.data.propertyId);
     }
 
     // =========================================================================
-    // 6. FINANCIAL INFLOWS: PAYMENTS (IMMUTABLE LEDGER)
+    // 5. FINANCIAL INFLOWS: PAYMENTS (IMMUTABLE LEDGER)
     // =========================================================================
     match /payments/{paymentId} {
-      allow read: if isAuthenticated() && (
+      allow get: if isSignedIn() && isValidId(paymentId) && (
         resource.data.tenantId == request.auth.uid ||
         resource.data.recordedByUserId == request.auth.uid ||
         isAuthorizedForProperty(resource.data.propertyId)
       );
-      allow create: if isAuthenticated() && (
-        isAuthorizedForProperty(request.resource.data.propertyId) ||
-        (request.resource.data.tenantId == request.auth.uid &&
-         request.resource.data.paymentMethod in ['MTN_MOMO', 'AIRTEL_MONEY', 'BANK_TRANSFER'])
+      allow list: if isSignedIn() && (
+        resource.data.tenantId == request.auth.uid ||
+        resource.data.recordedByUserId == request.auth.uid ||
+        isLandlord() ||
+        isManager()
       );
-      // Immutable ledger: only status or reversal audit fields can be modified by the property owner
-      allow update: if isAuthenticated() && isPropertyOwner(resource.data.propertyId) &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['syncStatus', 'reversalReason', 'paymentStatus', 'isReconciled']);
+      allow create: if isSignedIn() && isValidId(paymentId) &&
+        (
+          isAuthorizedForProperty(incoming().propertyId) ||
+          (incoming().tenantId == request.auth.uid && incoming().paymentMethod in ['MTN_MOMO', 'AIRTEL_MONEY', 'BANK_TRANSFER'])
+        ) &&
+        isValidPayment(incoming());
+      // Immutable ledger: Financial amount and tenant cannot be altered
+      allow update: if isSignedIn() && isValidId(paymentId) &&
+        isValidPayment(incoming()) &&
+        isPropertyOwner(existing().propertyId) &&
+        incoming().amount == existing().amount &&
+        incoming().tenantId == existing().tenantId &&
+        incoming().propertyId == existing().propertyId &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['syncStatus', 'reversalReason', 'isReconciled']);
       allow delete: if false; // Strict prohibition on payment deletion
     }
 
     // =========================================================================
-    // 7. FINANCIAL OUTFLOWS: EXPENSES
+    // 6. FINANCIAL OUTFLOWS: EXPENSES
     // =========================================================================
     match /expenses/{expenseId} {
-      allow read: if isAuthenticated() && isAuthorizedForProperty(resource.data.propertyId);
-      allow create: if isAuthenticated() && (
-        isAuthorizedForProperty(request.resource.data.propertyId) ||
-        isManager() || isLandlord()
+      allow get: if isSignedIn() && isValidId(expenseId) && isAuthorizedForProperty(resource.data.propertyId);
+      allow list: if isSignedIn() && (
+        resource.data.recordedByUserId == request.auth.uid ||
+        isLandlord() ||
+        isManager()
       );
-      allow update: if isAuthenticated() && isAuthorizedForProperty(resource.data.propertyId);
-      allow delete: if isAuthenticated() && isPropertyOwner(resource.data.propertyId);
+      allow create: if isSignedIn() && isValidId(expenseId) &&
+        (isAuthorizedForProperty(incoming().propertyId) || isLandlord() || isManager()) &&
+        incoming().recordedByUserId == request.auth.uid &&
+        isValidExpense(incoming());
+      allow update: if isSignedIn() && isValidId(expenseId) &&
+        isValidExpense(incoming()) &&
+        isAuthorizedForProperty(existing().propertyId) &&
+        incoming().propertyId == existing().propertyId;
+      allow delete: if isSignedIn() && isValidId(expenseId) && isPropertyOwner(resource.data.propertyId);
     }
 
     // =========================================================================
-    // 8. MAINTENANCE TICKETS & SERVICE DISPATCHES
+    // 7. MAINTENANCE TICKETS & SERVICE DISPATCHES
     // =========================================================================
     match /maintenance/{ticketId} {
-      allow read: if isAuthenticated() && (
-        resource.data.tenantId == request.auth.uid ||
-        resource.data.assignedProviderId == request.auth.uid ||
+      allow get: if isSignedIn() && isValidId(ticketId) && (
+        (('tenantId' in resource.data) && resource.data.tenantId == request.auth.uid) ||
+        (('assignedProviderId' in resource.data) && resource.data.assignedProviderId == request.auth.uid) ||
         isAuthorizedForProperty(resource.data.propertyId)
       );
-      allow create: if isAuthenticated() && (
-        request.resource.data.tenantId == request.auth.uid ||
-        isAuthorizedForProperty(request.resource.data.propertyId)
+      allow list: if isSignedIn() && (
+        (('tenantId' in resource.data) && resource.data.tenantId == request.auth.uid) ||
+        (('assignedProviderId' in resource.data) && resource.data.assignedProviderId == request.auth.uid) ||
+        isLandlord() ||
+        isManager() ||
+        isContractor()
       );
-      allow update: if isAuthenticated() && (
-        isAuthorizedForProperty(resource.data.propertyId) ||
-        (resource.data.assignedProviderId == request.auth.uid &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completionNotes', 'completedAt', 'actualCost', 'notes']))
+      allow create: if isSignedIn() && isValidId(ticketId) &&
+        (
+          (('tenantId' in incoming()) && incoming().tenantId == request.auth.uid) ||
+          isAuthorizedForProperty(incoming().propertyId)
+        ) &&
+        isValidMaintenance(incoming());
+      allow update: if isSignedIn() && isValidId(ticketId) && isValidMaintenance(incoming()) && (
+        (isAuthorizedForProperty(existing().propertyId) && incoming().propertyId == existing().propertyId) ||
+        ((('assignedProviderId' in existing()) && existing().assignedProviderId == request.auth.uid) &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'completionNotes', 'completedAt', 'actualCost', 'notes']))
       );
-      allow delete: if isAuthenticated() && isPropertyOwner(resource.data.propertyId);
+      allow delete: if isSignedIn() && isValidId(ticketId) && isPropertyOwner(resource.data.propertyId);
     }
 
     match /maintenance_tickets/{ticketId} {
-      allow read: if isAuthenticated() && (
-        resource.data.tenantId == request.auth.uid ||
-        resource.data.assignedProviderId == request.auth.uid ||
+      allow get: if isSignedIn() && isValidId(ticketId) && (
+        (('tenantId' in resource.data) && resource.data.tenantId == request.auth.uid) ||
+        (('assignedProviderId' in resource.data) && resource.data.assignedProviderId == request.auth.uid) ||
         isAuthorizedForProperty(resource.data.propertyId)
       );
-      allow create: if isAuthenticated() && (
-        request.resource.data.tenantId == request.auth.uid ||
-        isAuthorizedForProperty(request.resource.data.propertyId)
+      allow list: if isSignedIn() && (
+        (('tenantId' in resource.data) && resource.data.tenantId == request.auth.uid) ||
+        (('assignedProviderId' in resource.data) && resource.data.assignedProviderId == request.auth.uid) ||
+        isLandlord() ||
+        isManager() ||
+        isContractor()
       );
-      allow update: if isAuthenticated() && (
-        isAuthorizedForProperty(resource.data.propertyId) ||
-        (resource.data.assignedProviderId == request.auth.uid &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completionNotes', 'completedAt', 'actualCost', 'notes']))
+      allow create: if isSignedIn() && isValidId(ticketId) &&
+        (
+          (('tenantId' in incoming()) && incoming().tenantId == request.auth.uid) ||
+          isAuthorizedForProperty(incoming().propertyId)
+        ) &&
+        isValidMaintenance(incoming());
+      allow update: if isSignedIn() && isValidId(ticketId) && isValidMaintenance(incoming()) && (
+        (isAuthorizedForProperty(existing().propertyId) && incoming().propertyId == existing().propertyId) ||
+        ((('assignedProviderId' in existing()) && existing().assignedProviderId == request.auth.uid) &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'completionNotes', 'completedAt', 'actualCost', 'notes']))
       );
-      allow delete: if isAuthenticated() && isPropertyOwner(resource.data.propertyId);
+      allow delete: if isSignedIn() && isValidId(ticketId) && isPropertyOwner(resource.data.propertyId);
     }
 
     // =========================================================================
-    // 9. DIGITAL RECEIPTS (IMMUTABLE PROOF OF PAYMENT)
+    // 8. DIGITAL RECEIPTS (IMMUTABLE PROOF OF PAYMENT)
     // =========================================================================
     match /receipts/{receiptId} {
-      allow read: if isAuthenticated() && (
+      allow get: if isSignedIn() && isValidId(receiptId) && (
         resource.data.tenantId == request.auth.uid ||
         isAuthorizedForProperty(resource.data.propertyId)
       );
-      allow create: if isAuthenticated() && isAuthorizedForProperty(request.resource.data.propertyId);
+      allow list: if isSignedIn() && (
+        resource.data.tenantId == request.auth.uid ||
+        isLandlord() ||
+        isManager()
+      );
+      allow create: if isSignedIn() && isValidId(receiptId) &&
+        isAuthorizedForProperty(incoming().propertyId) &&
+        isValidReceipt(incoming());
       allow update, delete: if false; // Receipts are tamper-proof and immutable
     }
 
     // =========================================================================
-    // 10. AUDIT LOGS & EVENT JOURNAL (APPEND-ONLY)
+    // 9. AUDIT LOGS & EVENT JOURNAL (APPEND-ONLY)
     // =========================================================================
     match /audit_events/{eventId} {
-      allow read: if isAuthenticated() && isLandlord();
-      allow create: if isAuthenticated();
-      allow update, delete: if false; // Audit records cannot be altered or removed
+      allow get: if isSignedIn() && isValidId(eventId) && isLandlord();
+      allow list: if isSignedIn() && isLandlord();
+      allow create: if isSignedIn() && isValidId(eventId) &&
+        incoming().actorUserId == request.auth.uid &&
+        isValidAuditEvent(incoming());
+      allow update, delete: if false; // Audit logs are immutable
     }
 
     match /auditLogs/{logId} {
-      allow read: if isAuthenticated() && isLandlord();
-      allow create: if isAuthenticated();
+      allow get: if isSignedIn() && isValidId(logId) && isLandlord();
+      allow list: if isSignedIn() && isLandlord();
+      allow create: if isSignedIn() && isValidId(logId) &&
+        incoming().actorUserId == request.auth.uid &&
+        isValidAuditEvent(incoming());
       allow update, delete: if false;
     }
 
     // =========================================================================
-    // 11. SERVICE PROVIDERS DIRECTORY
+    // 10. SERVICE PROVIDERS DIRECTORY
     // =========================================================================
     match /service_providers/{providerId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && (isLandlord() || request.auth.uid == providerId);
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(providerId) &&
+        (isLandlord() || request.auth.uid == providerId) &&
+        isValidServiceProvider(incoming());
+      allow update: if isSignedIn() && isValidId(providerId) &&
+        isValidServiceProvider(incoming()) && (
+          isLandlord() ||
+          (request.auth.uid == providerId && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'phone', 'email', 'rate']))
+        );
+      allow delete: if isSignedIn() && isValidId(providerId) && isLandlord();
     }
 
     match /serviceProviders/{providerId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && (isLandlord() || request.auth.uid == providerId);
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(providerId) &&
+        (isLandlord() || request.auth.uid == providerId) &&
+        isValidServiceProvider(incoming());
+      allow update: if isSignedIn() && isValidId(providerId) &&
+        isValidServiceProvider(incoming()) && (
+          isLandlord() ||
+          (request.auth.uid == providerId && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'phone', 'email', 'rate']))
+        );
+      allow delete: if isSignedIn() && isValidId(providerId) && isLandlord();
     }
   }
 }
