@@ -130,7 +130,12 @@ export const WorkspaceHubScreen: React.FC = () => {
   const [customQuestions, setCustomQuestions] = useState<FormQuestionDef[]>([
     { title: 'Full Legal Name', type: 'TEXT', required: true },
     { title: 'Mobile Money Phone Number', type: 'TEXT', required: true },
-    { title: 'Assigned Estate & Unit Choice', type: 'DROP_DOWN', options: ['Kampala Apartments - Unit 101', 'Entebbe Heights - Unit 201', 'Jinja View - Unit 301'], required: true },
+    {
+      title: 'Assigned Estate & Unit Choice',
+      type: 'DROP_DOWN',
+      options: properties.length > 0 ? properties.map((p) => `${p.name} - All Units`) : ['Residential Building - Main Unit'],
+      required: true,
+    },
   ]);
 
   // Share form modal state
@@ -378,8 +383,8 @@ export const WorkspaceHubScreen: React.FC = () => {
         unitName: tenant.unitName,
         monthlyRent: tenant.monthlyRent,
         currency: 'UGX',
-        startDate: new Date(tenant.leaseStart).toISOString().split('T')[0],
-        endDate: new Date(tenant.leaseEnd).toISOString().split('T')[0],
+        startDate: tenant.leaseStartDate || (tenant.leaseStart ? new Date(tenant.leaseStart).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+        endDate: tenant.leaseEndDate || (tenant.leaseEnd ? new Date(tenant.leaseEnd).toISOString().split('T')[0] : new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0]),
       });
       setGeneratedDocUrl(res.documentUrl);
       setStatusMessage({ type: 'success', text: 'Generated official Google Doc lease agreement!' });

@@ -24,13 +24,13 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ currentRoute, onNavigate }) => {
   const {
     currentUser,
-    currentWorkspace,
+    currentRole,
+    activeContext,
     syncStatus,
     syncMessage,
     triggerSync,
     logout,
     switchWorkspace,
-    isDemoMode,
     tenants
   } = useMars();
 
@@ -89,13 +89,9 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, onNavigate }) => {
               )}
             </div>
             <div className="flex items-center gap-1.5">
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  isDemoMode ? 'bg-[#62E3B6] animate-pulse' : 'bg-[#0AB77F]'
-                }`}
-              />
+              <span className="w-2 h-2 rounded-full bg-[#0AB77F]" />
               <span className="text-[10px] font-bold tracking-wider text-[#0AB77F] uppercase">
-                {isDemoMode ? 'UGANDA MASTER LEDGER (LIVE)' : 'PRODUCTION LEDGER'}
+                UGANDA MASTER LEDGER (LIVE)
               </span>
             </div>
           </div>
@@ -187,7 +183,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, onNavigate }) => {
             >
               <span className="text-sm">🔀</span>
               <span className="hidden sm:inline">
-                {currentWorkspace?.role ? USER_ROLES[currentWorkspace.role]?.title.split('/')[0] : 'Workspace'}
+                {currentRole ? USER_ROLES[currentRole]?.title.split('/')[0] : 'Workspace'}
               </span>
               <ChevronDown className="w-3.5 h-3.5 text-[#65766F]" />
             </button>
@@ -205,7 +201,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, onNavigate }) => {
                   <div className="py-1 space-y-1">
                     {(Object.keys(USER_ROLES) as UserRoleKey[]).map((key) => {
                       const role = USER_ROLES[key];
-                      const isCurrent = currentUser?.primaryRole === key;
+                      const isCurrent = currentRole === key;
                       return (
                         <button
                           key={key}

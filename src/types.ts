@@ -3,6 +3,7 @@ export type UserRoleKey = 'LANDLORD' | 'MANAGER' | 'TENANT' | 'SERVICE_PROVIDER'
 export interface UserRoleInfo {
   key: UserRoleKey;
   title: string;
+  label?: string;
   subtitle: string;
   icon: string;
   defaultRoute: string;
@@ -46,9 +47,35 @@ export const USER_ROLES: Record<UserRoleKey, UserRoleInfo> = {
   },
 };
 
+export type SubscriptionStatus =
+  | 'TRIAL_ACTIVE'
+  | 'TRIAL_EXPIRING_SOON'
+  | 'SUBSCRIPTION_ACTIVE'
+  | 'SUBSCRIPTION_REQUIRED'
+  | 'GRACE_PERIOD';
+
+export type SubscriptionPlanKey =
+  | 'FREE_TRIAL'
+  | 'STANDARD_ESTATE'
+  | 'PORTFOLIO_PRO'
+  | 'COMMERCIAL_SCALE';
+
+export interface RoleAssignment {
+  id: string;
+  roleKey: UserRoleKey;
+  role?: UserRoleKey;
+  propertyId?: string | null;
+  unitId?: string | null;
+  workspaceTitle?: string;
+  permissions?: string[];
+  assignedAt: number;
+}
+export type RoleAssignmentEntity = RoleAssignment;
+
 export interface UserEntity {
   id: string;
-  phoneNumber: string;
+  phoneNumber?: string;
+  phone?: string;
   email: string;
   displayName: string;
   photoUrl?: string;
@@ -57,32 +84,33 @@ export interface UserEntity {
   googleEmail?: string;
   authProvider?: 'GOOGLE' | 'PASSWORD' | 'DEMO';
   primaryRole: UserRoleKey;
-  accountStatus: 'ACTIVE' | 'SUSPENDED' | 'PENDING_VERIFICATION';
-  isDemo: boolean;
-  organizationId: string;
+  accountStatus?: 'ACTIVE' | 'SUSPENDED' | 'PENDING_VERIFICATION';
+  isDemo?: boolean;
+  organizationId?: string;
+  assignedRoles: RoleAssignment[];
+  activeContextId?: string;
+  trialStartDate?: number;
+  trialEndDate?: number;
+  subscriptionStatus?: SubscriptionStatus;
+  subscriptionPlan?: SubscriptionPlanKey;
+  language?: 'en' | 'lg';
   createdAt: number;
-  updatedAt: number;
-}
-
-export interface RoleAssignmentEntity {
-  id: string;
-  userId: string;
-  role: UserRoleKey;
-  propertyId?: string | null;
-  unitId?: string | null;
-  workspaceTitle: string;
-  createdAt: number;
+  updatedAt?: number;
 }
 
 export interface PropertyEntity {
   id: string;
-  ownerUserId: string;
+  ownerUserId?: string;
+  ownerId?: string;
   name: string;
   location: string;
   totalUnits: number;
-  currency: string;
-  syncStatus: 'SYNCED' | 'PENDING' | 'FAILED';
-  lastSyncedAt: number;
+  occupiedUnits?: number;
+  monthlyRevenue?: number;
+  propertyType?: 'Residential' | 'Commercial' | 'Mixed-Use' | 'Student Hostel' | 'Industrial';
+  currency?: string;
+  syncStatus?: 'SYNCED' | 'PENDING' | 'FAILED';
+  lastSyncedAt?: number;
   createdAt: number;
 }
 
@@ -97,81 +125,153 @@ export interface UnitEntity {
 
 export interface TenantEntity {
   id: string;
-  userId: string;
-  propertyId: string;
-  unitId: string;
+  userId?: string;
+  propertyId?: string;
+  unitId?: string;
   name: string;
   phone: string;
   unitName: string;
   propertyName: string;
   monthlyRent: number;
-  rentDue: number;
+  rentDue?: number;
   arrears: number;
-  advanceCredit: number;
-  paymentStatus: 'Paid' | 'Pending' | 'Overdue';
-  leaseStart: number;
-  leaseEnd: number;
-  syncStatus: 'SYNCED' | 'PENDING' | 'FAILED';
+  advanceCredit?: number;
+  advanceBalance?: number;
+  depositPaid?: number;
+  paymentStatus?: 'Paid' | 'Pending' | 'Overdue';
+  status?: 'Paid' | 'Pending' | 'Overdue' | 'Current';
+  leaseStart?: number;
+  leaseEnd?: number;
+  leaseStartDate?: string;
+  leaseEndDate?: string;
+  nextDueDate?: string;
+  nin?: string;
+  syncStatus?: 'SYNCED' | 'PENDING' | 'FAILED';
   createdAt: number;
 }
 
 export interface PaymentEntity {
   id: string;
-  tenantId: string;
-  propertyId: string;
-  unitId: string;
+  tenantId?: string;
+  propertyId?: string;
+  unitId?: string;
   tenantName: string;
+  tenantPhone?: string;
   unitName: string;
   propertyName: string;
   amount: number;
-  currency: string;
-  paymentMethod: string; // e.g. "Mobile Money (MTN)", "Mobile Money (Airtel)", "Bank Transfer", "Cash"
-  paymentStatus: 'SUCCESSFUL' | 'PENDING' | 'FAILED' | 'REVERSED';
-  externalReference: string;
+  currency?: string;
+  paymentMethod: string;
+  paymentStatus?: 'SUCCESSFUL' | 'PENDING' | 'FAILED' | 'REVERSED';
+  externalReference?: string;
+  transactionReference?: string;
   receiptNumber: string;
   recordedByUserId?: string;
-  recordedBy: string;
+  recordedBy?: string;
+  issuedByName?: string;
   notes: string;
   date: string;
   paymentTimestamp: number;
-  syncStatus: 'SYNCED' | 'PENDING' | 'FAILED';
+  syncStatus?: 'SYNCED' | 'PENDING' | 'FAILED';
   createdAt: number;
 }
 
 export interface ExpenseEntity {
   id: string;
-  propertyId: string;
+  propertyId?: string;
   propertyName: string;
   description: string;
   amount: number;
-  currency: string;
+  currency?: string;
   category: 'Maintenance' | 'Utilities' | 'Caretaker Wage' | 'Repairs' | 'Security' | 'General';
+  recipientName?: string;
+  recipientPhone?: string;
   receiptPhotoUri?: string | null;
-  recordedBy: string;
-  status: 'APPROVED' | 'PENDING' | 'REJECTED';
+  receiptPhotoUrl?: string | null;
+  receiptPhoto?: string | null;
+  recordedBy?: string;
+  authorizedByName?: string;
+  linkedMaintenanceId?: string;
+  status?: 'APPROVED' | 'PENDING' | 'REJECTED';
   date: string;
   expenseTimestamp: number;
-  syncStatus: 'SYNCED' | 'PENDING' | 'FAILED';
+  syncStatus?: 'SYNCED' | 'PENDING' | 'FAILED';
   createdAt: number;
+}
+
+export type MaintenanceUrgency = 'Emergency' | 'Urgent' | 'Normal' | 'Low';
+export type MaintenancePriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'EMERGENCY';
+
+export type MaintenanceStatus =
+  | 'Pending'
+  | 'In Progress'
+  | 'Resolved'
+  | 'Cancelled'
+  | 'SUBMITTED'
+  | 'UNDER_REVIEW'
+  | 'INSPECTION_SCHEDULED'
+  | 'QUOTATION_PROVIDED'
+  | 'APPROVED'
+  | 'DECLINED'
+  | 'IN_PROGRESS'
+  | 'WORK_IN_PROGRESS'
+  | 'QUALITY_CHECK'
+  | 'COMPLETED'
+  | 'CLOSED'
+  | 'CANCELLED';
+
+export interface MaintenanceQuotation {
+  id: string;
+  laborCost?: number;
+  labourCost?: number;
+  materialCost?: number;
+  materialsCost?: number;
+  transportCost?: number;
+  totalCost: number;
+  scopeOfWork?: string;
+  materialBreakdown?: string[];
+  estimatedDays?: number;
+  inspectorName?: string;
+  inspectorPhone?: string;
+  inspectorNotes?: string;
+  submittedAt: number;
+  validUntil?: number;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
 }
 
 export interface MaintenanceEntity {
   id: string;
-  propertyId: string;
+  propertyId?: string;
   propertyName: string;
-  unitId: string;
+  buildingName?: string;
+  unitId?: string;
   unitName: string;
   tenantName: string;
+  tenantPhone?: string;
+  serviceCategory?: string;
   issue: string;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
-  status: 'Pending' | 'In Progress' | 'Resolved' | 'Cancelled';
+  priority: MaintenancePriority;
+  urgency?: MaintenanceUrgency;
+  status: MaintenanceStatus;
+  preferredDate?: string;
+  preferredTime?: string;
+  contactPhone?: string;
+  photos?: string[];
+  additionalNotes?: string;
   assignedProviderId?: string | null;
   assignedProviderName?: string | null;
   estimatedCost: number;
-  actualCost: number;
+  approvedCost?: number;
+  actualCost?: number;
+  isMarsProjectsUganda?: boolean;
+  marsProjectsTicketNumber?: string;
+  quotation?: MaintenanceQuotation;
+  linkedExpenseId?: string;
   date: string;
   reportedTimestamp: number;
-  syncStatus: 'SYNCED' | 'PENDING' | 'FAILED';
+  completedAt?: number;
+  syncStatus?: 'SYNCED' | 'PENDING' | 'FAILED';
+  syncState?: 'SYNCED' | 'PENDING' | 'FAILED';
   createdAt: number;
 }
 
@@ -179,13 +279,37 @@ export interface ServiceProviderEntity {
   id: string;
   userId?: string | null;
   name: string;
-  serviceType: 'Plumbing' | 'Electrical' | 'Security' | 'Fumigation' | 'General' | 'Masonry' | 'Painting';
+  serviceType: 'Plumbing' | 'Electrical' | 'Security' | 'Fumigation' | 'General' | 'Masonry' | 'Painting' | 'Roofing' | 'Carpentry' | 'Tiling';
   phone: string;
   rate: string;
   rating: number;
   status: 'Available' | 'On Job' | 'Unavailable';
   assignedProperty: string;
-  isVerified: boolean;
+  isVerified?: boolean;
+  isVettedByMarsProjects?: boolean;
+  completedJobsCount?: number;
+  createdAt: number;
+}
+
+export interface ManagerPermissions {
+  canCollectPayments: boolean;
+  canLogPayments?: boolean;
+  canLogExpenses: boolean;
+  canDispatchMaintenance: boolean;
+  canDispatchRepairs?: boolean;
+  expenseLimitUgx: number;
+  maxExpenseApprovalUgx?: number;
+}
+
+export interface ManagerEntity {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  pin: string;
+  assignedPropertyIds: string[];
+  permissions: ManagerPermissions;
+  status: 'ACTIVE' | 'DISABLED';
   createdAt: number;
 }
 
@@ -196,7 +320,7 @@ export interface MonthlyPaymentStatusEntity {
   propertyId: string;
   propertyName: string;
   unitName: string;
-  month: string; // e.g. "August 2026"
+  month: string;
   status: 'Paid' | 'Pending' | 'Overdue';
   amountDue: number;
   amountPaid: number;
@@ -207,7 +331,7 @@ export interface AuditEventEntity {
   id: string;
   actorUserId: string;
   actorName: string;
-  eventType: string; // "LOGIN", "LOGOUT", "PAYMENT_RECORDED", "PAYMENT_REVERSED", "EXPENSE_CREATED", "MAINTENANCE_LOGGED", "ROLE_SWITCH", "SYNC_EXECUTED", "PROPERTY_ADDED", "TENANT_REGISTERED", etc.
+  eventType: string;
   resourceType: 'PAYMENT' | 'TENANT' | 'PROPERTY' | 'EXPENSE' | 'AUTH' | 'SYSTEM' | 'MAINTENANCE' | 'NOTIFICATION';
   resourceId: string;
   details: string;
@@ -229,7 +353,7 @@ export interface RecurringTask {
   id: string;
   title: string;
   property: string;
-  frequency: string; // "Weekly", "Bi-weekly", "Monthly", "Quarterly", "Bi-annually"
+  frequency: string;
   nextDueDate: string;
   assignedVendor: string;
   estimatedCost: number;
@@ -285,4 +409,3 @@ export interface GoogleDriveBackupFileItem {
   summary?: MarsBackupData['summary'];
   exportedAt?: string;
 }
-

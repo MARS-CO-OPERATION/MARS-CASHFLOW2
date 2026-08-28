@@ -1,7 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import {
   UserEntity,
-  RoleAssignmentEntity,
+  RoleAssignment,
   PropertyEntity,
   TenantEntity,
   PaymentEntity,
@@ -12,6 +12,12 @@ import {
   NotificationEntity,
   RecurringTask,
   UserRoleKey,
+  ManagerEntity,
+  MaintenanceStatus,
+  MaintenanceUrgency,
+  MaintenanceQuotation,
+  SubscriptionStatus,
+  SubscriptionPlanKey,
 } from '../types';
 import {
   INITIAL_PROPERTIES,
@@ -22,72 +28,147 @@ import {
   INITIAL_SERVICE_PROVIDERS,
   INITIAL_RECURRING_TASKS,
   INITIAL_AUDIT_TRAIL,
+  STORAGE_KEYS,
+  loadFromStorage,
+  saveToStorage,
+  MARS_PROJECTS_CONTACT,
+  clearMarsStorage,
 } from '../services/store';
+import { Language, translations, Translations } from '../utils/i18n';
 
 interface MarsContextType {
   currentUser: UserEntity | null;
-  currentWorkspace: RoleAssignmentEntity | null;
-  userRoles: RoleAssignmentEntity[];
+  currentRole: UserRoleKey;
+  activeContext: RoleAssignment | null;
+  authorizedRoles: RoleAssignment[];
+  
+  // Collections (Filtered to active context where appropriate)
   properties: PropertyEntity[];
+  allProperties: PropertyEntity[];
   tenants: TenantEntity[];
+  allTenants: TenantEntity[];
   payments: PaymentEntity[];
+  allPayments: PaymentEntity[];
   expenses: ExpenseEntity[];
+  allExpenses: ExpenseEntity[];
   maintenance: MaintenanceEntity[];
+  allMaintenance: MaintenanceEntity[];
   serviceProviders: ServiceProviderEntity[];
   recurringTasks: RecurringTask[];
   auditTrail: AuditEventEntity[];
+  managers: ManagerEntity[];
   notifications: NotificationEntity[];
+  
+  // Subscription & 2-Month Free Trial
+  subscriptionStatus: SubscriptionStatus;
+  trialDaysRemaining: number;
+  trialStartDate: number;
+  trialEndDate: number;
+  isTrialActive: boolean;
+  isSubscriptionRequired: boolean;
+  activateSubscription: (planKey: SubscriptionPlanKey, provider: string, phone: string) => Promise<{ success: boolean; message: string }>;
+  
+  // Localization
+  language: Language;
+  setLanguage: (lang: Language) => void;
+  t: Translations;
+  
+  // Sync
   syncStatus: 'IDLE' | 'SYNCING' | 'SUCCESS' | 'ERROR';
   syncMessage: string | null;
-  isDemoMode: boolean;
+  triggerSync: (callback?: (status: boolean, message: string) => void) => void;
   
-  // Auth
+  // Auth & Identity
   login: (identifier: string, pin: string, role?: UserRoleKey) => boolean;
-  register: (data: { displayName: string; phone: string; email: string; role: UserRoleKey; orgName: string }) => boolean;
+  register: (data: { displayName: string; phone: string; email: string; role: UserRoleKey; propertyName?: string }) => boolean;
   logout: () => void;
   switchWorkspace: (roleKey: UserRoleKey, workspaceTitle?: string) => void;
+  switchContext: (contextId: string) => void;
   
-  // Ledger operations
+  // Property & Tenant Management
+  addProperty: (property: { name: string; location: string; totalUnits: number; propertyType?: PropertyEntity['propertyType'] }) => { success: boolean; propertyId: string };
+  addTenant: (tenant: {
+    name: string;
+    phone: string;
+    propertyName: string;
+    propertyId?: string;
+    unitName: string;
+    unitId?: string;
+    monthlyRent: number;
+    arrears?: number;
+    advanceBalance?: number;
+    nin?: string;
+  }) => { success: boolean; tenantId: string };
+  
+  // Financial Operations
   recordPayment: (payment: {
     tenantName: string;
+    tenantPhone?: string;
     amount: number;
     paymentMethod: string;
-    notes: string;
+    notes?: string;
     propertyName?: string;
     unitName?: string;
+    periodCovered?: string;
   }) => { success: boolean; paymentId?: string; message: string };
+  
+  processMobileMoneyPayment: (params: {
+    provider: 'MTN_MOMO' | 'AIRTEL_MONEY';
+    phone: string;
+    amount: number;
+    tenantName: string;
+    propertyName: string;
+    unitName: string;
+    notes?: string;
+  }) => Promise<{ success: boolean; paymentId?: string; receiptNumber?: string; message: string }>;
   
   addExpense: (expense: {
     propertyName: string;
     description: string;
     amount: number;
     category: ExpenseEntity['category'];
-    receiptPhotoUri?: string | null;
-  }) => { success: boolean; message: string };
+    recipientName?: string;
+    recipientPhone?: string;
+    receiptPhotoUrl?: string;
+    linkedMaintenanceId?: string;
+  }) => { success: boolean; expenseId: string; message: string };
+  
+  // MARS Projects Uganda Maintenance & Project Service Integration
+  requestMarsProjectsService: (request: {
+    propertyName: string;
+    buildingName?: string;
+    unitName: string;
+    tenantName: string;
+    tenantPhone?: string;
+    serviceCategory: string;
+    issue: string;
+    urgency: MaintenanceUrgency;
+    priority?: MaintenanceEntity['priority'];
+    preferredDate?: string;
+    preferredTime?: string;
+    contactPhone?: string;
+    photos?: string[];
+    additionalNotes?: string;
+    estimatedCost?: number;
+  }) => { success: boolean; ticketId: string; ticketNumber: string; message: string };
   
   addMaintenance: (item: {
     propertyName: string;
     unitName: string;
     tenantName: string;
     issue: string;
-    priority: MaintenanceEntity['priority'];
-    estimatedCost: number;
+    priority?: MaintenanceEntity['priority'];
+    estimatedCost?: number;
     assignedProviderName?: string;
   }) => { success: boolean; message: string };
   
-  updateMaintenanceStatus: (id: string, status: MaintenanceEntity['status'], actualCost?: number) => void;
+  updateMaintenanceStatus: (id: string, status: MaintenanceStatus, actualCost?: number) => void;
+  submitMaintenanceQuotation: (maintenanceId: string, quotation: Omit<MaintenanceQuotation, 'id' | 'submittedAt' | 'status'>) => void;
+  approveMaintenanceQuotation: (maintenanceId: string) => void;
+  declineMaintenanceQuotation: (maintenanceId: string, reason?: string) => void;
+  linkMaintenanceToCashflowExpense: (maintenanceId: string) => { success: boolean; expenseId?: string; message: string };
   
-  addProperty: (property: { name: string; location: string; totalUnits: number }) => void;
-  
-  addTenant: (tenant: {
-    name: string;
-    phone: string;
-    propertyName: string;
-    unitName: string;
-    monthlyRent: number;
-    arrears: number;
-  }) => void;
-  
+  // Contractors & Recurring Tasks
   addServiceProvider: (provider: {
     name: string;
     serviceType: ServiceProviderEntity['serviceType'];
@@ -95,11 +176,17 @@ interface MarsContextType {
     rate: string;
     assignedProperty: string;
   }) => void;
-  
   updateServiceProviderStatus: (id: string, status: ServiceProviderEntity['status']) => void;
-  
   addRecurringTask: (task: Omit<RecurringTask, 'id' | 'status'>) => void;
   
+  // Landlord-Only Controls
+  addManager: (manager: Omit<ManagerEntity, 'id' | 'createdAt'>) => void;
+  updateManagerStatus: (managerId: string, status: 'ACTIVE' | 'DISABLED') => void;
+  resetManagerPin: (managerId: string, newPin: string) => void;
+  updateManagerPermissions: (managerId: string, permissions: ManagerEntity['permissions']) => void;
+  removeManager: (managerId: string) => void;
+  
+  // Reminders & Utilities
   sendTenantReminder: (
     tenantName: string,
     phone: string,
@@ -108,155 +195,195 @@ interface MarsContextType {
     unitName: string,
     onSuccess?: () => void
   ) => void;
-  
-  triggerSync: (callback?: (status: boolean, message: string) => void) => void;
-  resetDemoData: () => void;
+  resetToCleanDatabase: () => void;
+  isDemoMode: boolean;
 }
 
 const MarsContext = createContext<MarsContextType | undefined>(undefined);
 
-const LOCAL_STORAGE_KEY_PREFIX = 'mars_cashflow_';
-
 export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Current logged in user (Loads from local storage or sets up initial landlord account with 2-Month Free Trial)
   const [currentUser, setCurrentUser] = useState<UserEntity | null>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}user`);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
-    }
-    // Default initial session is Owner/Landlord
-    return {
-      id: 'user-landlord-1',
-      phoneNumber: '0772001122',
-      email: 'landlord@marscashflow.ug',
-      displayName: 'Dr. Michael Ssempa',
+    const saved = loadFromStorage<UserEntity | null>(STORAGE_KEYS.USER, null);
+    if (saved) return saved;
+
+    const now = Date.now();
+    const trialDays = 60; // 2 Months Free Trial
+    const trialEnd = now + trialDays * 86400000;
+
+    const defaultLandlord: UserEntity = {
+      id: `usr-${now}`,
+      phone: '0772123456',
+      email: 'owner@marscashflow.ug',
+      displayName: 'Property Owner',
       primaryRole: 'LANDLORD',
-      accountStatus: 'ACTIVE',
-      isDemo: true,
-      organizationId: 'org-mars-ug',
-      createdAt: Date.now() - 365 * 86400000,
-      updatedAt: Date.now(),
+      assignedRoles: [
+        {
+          id: `role-landlord-${now}`,
+          roleKey: 'LANDLORD',
+          assignedAt: now,
+          permissions: ['ALL'],
+        },
+        {
+          id: `role-manager-${now}`,
+          roleKey: 'MANAGER',
+          assignedAt: now,
+          permissions: ['LOG_PAYMENTS', 'LOG_EXPENSES', 'DISPATCH_REPAIRS'],
+        },
+        {
+          id: `role-tenant-${now}`,
+          roleKey: 'TENANT',
+          assignedAt: now,
+        },
+        {
+          id: `role-contractor-${now}`,
+          roleKey: 'SERVICE_PROVIDER',
+          assignedAt: now,
+        },
+      ],
+      activeContextId: `role-landlord-${now}`,
+      createdAt: now,
+      trialStartDate: now,
+      trialEndDate: trialEnd,
+      subscriptionStatus: 'TRIAL_ACTIVE',
+      subscriptionPlan: 'FREE_TRIAL',
+      language: 'en',
     };
+    saveToStorage(STORAGE_KEYS.USER, defaultLandlord);
+    return defaultLandlord;
   });
 
-  const [currentWorkspace, setCurrentWorkspace] = useState<RoleAssignmentEntity | null>(() => {
-    return {
-      id: 'ws-landlord-1',
-      userId: 'user-landlord-1',
-      role: 'LANDLORD',
-      workspaceTitle: 'Ssempa Estate Master Ledger',
-      createdAt: Date.now(),
-    };
+  // Language state
+  const [language, setLanguageState] = useState<Language>(() => {
+    return loadFromStorage<Language>(STORAGE_KEYS.LANGUAGE, 'en');
   });
 
-  const [properties, setProperties] = useState<PropertyEntity[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}properties`);
-    return saved ? JSON.parse(saved) : INITIAL_PROPERTIES;
-  });
+  const setLanguage = (lang: Language) => {
+    setLanguageState(lang);
+    saveToStorage(STORAGE_KEYS.LANGUAGE, lang);
+    if (currentUser) {
+      const updated = { ...currentUser, language: lang };
+      setCurrentUser(updated);
+      saveToStorage(STORAGE_KEYS.USER, updated);
+    }
+  };
 
-  const [tenants, setTenants] = useState<TenantEntity[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}tenants`);
-    return saved ? JSON.parse(saved) : INITIAL_TENANTS;
-  });
+  const t = useMemo(() => translations[language], [language]);
 
-  const [payments, setPayments] = useState<PaymentEntity[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}payments`);
-    return saved ? JSON.parse(saved) : INITIAL_PAYMENTS;
-  });
+  // Active Role & Context
+  const authorizedRoles = useMemo(() => {
+    if (!currentUser) return [];
+    return currentUser.assignedRoles || [];
+  }, [currentUser]);
 
-  const [expenses, setExpenses] = useState<ExpenseEntity[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}expenses`);
-    return saved ? JSON.parse(saved) : INITIAL_EXPENSES;
-  });
+  const activeContext = useMemo(() => {
+    if (!currentUser || !currentUser.assignedRoles.length) return null;
+    const found = currentUser.assignedRoles.find((r) => r.id === currentUser.activeContextId);
+    return found || currentUser.assignedRoles[0] || null;
+  }, [currentUser]);
 
-  const [maintenance, setMaintenance] = useState<MaintenanceEntity[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}maintenance`);
-    return saved ? JSON.parse(saved) : INITIAL_MAINTENANCE;
-  });
+  const currentRole: UserRoleKey = activeContext?.roleKey || currentUser?.primaryRole || 'LANDLORD';
 
-  const [serviceProviders, setServiceProviders] = useState<ServiceProviderEntity[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}service_providers`);
-    return saved ? JSON.parse(saved) : INITIAL_SERVICE_PROVIDERS;
-  });
+  // Core Collections (initialized with ZERO sample data by default)
+  const [properties, setProperties] = useState<PropertyEntity[]>(() =>
+    loadFromStorage<PropertyEntity[]>(STORAGE_KEYS.PROPERTIES, INITIAL_PROPERTIES)
+  );
 
-  const [recurringTasks, setRecurringTasks] = useState<RecurringTask[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}recurring_tasks`);
-    return saved ? JSON.parse(saved) : INITIAL_RECURRING_TASKS;
-  });
+  const [tenants, setTenants] = useState<TenantEntity[]>(() =>
+    loadFromStorage<TenantEntity[]>(STORAGE_KEYS.TENANTS, INITIAL_TENANTS)
+  );
 
-  const [auditTrail, setAuditTrail] = useState<AuditEventEntity[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}audit_trail`);
-    return saved ? JSON.parse(saved) : INITIAL_AUDIT_TRAIL;
-  });
+  const [payments, setPayments] = useState<PaymentEntity[]>(() =>
+    loadFromStorage<PaymentEntity[]>(STORAGE_KEYS.PAYMENTS, INITIAL_PAYMENTS)
+  );
+
+  const [expenses, setExpenses] = useState<ExpenseEntity[]>(() =>
+    loadFromStorage<ExpenseEntity[]>(STORAGE_KEYS.EXPENSES, INITIAL_EXPENSES)
+  );
+
+  const [maintenance, setMaintenance] = useState<MaintenanceEntity[]>(() =>
+    loadFromStorage<MaintenanceEntity[]>(STORAGE_KEYS.MAINTENANCE, INITIAL_MAINTENANCE)
+  );
+
+  const [serviceProviders, setServiceProviders] = useState<ServiceProviderEntity[]>(() =>
+    loadFromStorage<ServiceProviderEntity[]>(STORAGE_KEYS.SERVICE_PROVIDERS, INITIAL_SERVICE_PROVIDERS)
+  );
+
+  const [recurringTasks, setRecurringTasks] = useState<RecurringTask[]>(() =>
+    loadFromStorage<RecurringTask[]>(STORAGE_KEYS.RECURRING_TASKS, INITIAL_RECURRING_TASKS)
+  );
+
+  const [auditTrail, setAuditTrail] = useState<AuditEventEntity[]>(() =>
+    loadFromStorage<AuditEventEntity[]>(STORAGE_KEYS.AUDIT_TRAIL, INITIAL_AUDIT_TRAIL)
+  );
+
+  const [managers, setManagers] = useState<ManagerEntity[]>(() =>
+    loadFromStorage<ManagerEntity[]>(STORAGE_KEYS.MANAGERS, [])
+  );
 
   const [notifications, setNotifications] = useState<NotificationEntity[]>([]);
   const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING' | 'SUCCESS' | 'ERROR'>('IDLE');
   const [syncMessage, setSyncMessage] = useState<string | null>('Uganda Master Ledger Synced & Online');
-  const [isDemoMode] = useState<boolean>(true);
 
-  // Sync to local storage
-  useEffect(() => {
-    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}properties`, JSON.stringify(properties));
-  }, [properties]);
+  // Persistence hooks
+  useEffect(() => saveToStorage(STORAGE_KEYS.PROPERTIES, properties), [properties]);
+  useEffect(() => saveToStorage(STORAGE_KEYS.TENANTS, tenants), [tenants]);
+  useEffect(() => saveToStorage(STORAGE_KEYS.PAYMENTS, payments), [payments]);
+  useEffect(() => saveToStorage(STORAGE_KEYS.EXPENSES, expenses), [expenses]);
+  useEffect(() => saveToStorage(STORAGE_KEYS.MAINTENANCE, maintenance), [maintenance]);
+  useEffect(() => saveToStorage(STORAGE_KEYS.SERVICE_PROVIDERS, serviceProviders), [serviceProviders]);
+  useEffect(() => saveToStorage(STORAGE_KEYS.RECURRING_TASKS, recurringTasks), [recurringTasks]);
+  useEffect(() => saveToStorage(STORAGE_KEYS.AUDIT_TRAIL, auditTrail), [auditTrail]);
+  useEffect(() => saveToStorage(STORAGE_KEYS.MANAGERS, managers), [managers]);
 
-  useEffect(() => {
-    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}tenants`, JSON.stringify(tenants));
-  }, [tenants]);
+  // Subscription calculation (Free for 2 Months, Subscription begins Month 3)
+  const now = Date.now();
+  const trialStartDate = currentUser?.trialStartDate || now;
+  const trialEndDate = currentUser?.trialEndDate || (now + 60 * 86400000);
+  const trialDaysRemaining = Math.max(0, Math.ceil((trialEndDate - now) / 86400000));
+  
+  const isTrialActive = trialDaysRemaining > 0 && currentUser?.subscriptionPlan === 'FREE_TRIAL';
+  const isSubscriptionRequired = trialDaysRemaining === 0 && currentUser?.subscriptionPlan === 'FREE_TRIAL';
+  
+  const subscriptionStatus: SubscriptionStatus = useMemo(() => {
+    if (!currentUser) return 'TRIAL_ACTIVE';
+    if (currentUser.subscriptionPlan !== 'FREE_TRIAL') return 'SUBSCRIPTION_ACTIVE';
+    if (trialDaysRemaining > 7) return 'TRIAL_ACTIVE';
+    if (trialDaysRemaining > 0) return 'TRIAL_EXPIRING_SOON';
+    return 'SUBSCRIPTION_REQUIRED';
+  }, [currentUser, trialDaysRemaining]);
 
-  useEffect(() => {
-    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}payments`, JSON.stringify(payments));
-  }, [payments]);
+  const activateSubscription = async (
+    planKey: SubscriptionPlanKey,
+    provider: string,
+    phone: string
+  ): Promise<{ success: boolean; message: string }> => {
+    // Simulate backend payment verification
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    if (!currentUser) return { success: false, message: 'No active user session' };
 
-  useEffect(() => {
-    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}expenses`, JSON.stringify(expenses));
-  }, [expenses]);
+    const updatedUser: UserEntity = {
+      ...currentUser,
+      subscriptionPlan: planKey,
+      subscriptionStatus: 'SUBSCRIPTION_ACTIVE',
+    };
+    setCurrentUser(updatedUser);
+    saveToStorage(STORAGE_KEYS.USER, updatedUser);
 
-  useEffect(() => {
-    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}maintenance`, JSON.stringify(maintenance));
-  }, [maintenance]);
+    addAuditEvent(
+      'SUBSCRIPTION_ACTIVATED',
+      'AUTH',
+      planKey,
+      `Activated ${planKey} plan via ${provider} (${phone}). Next billing date set.`
+    );
 
-  useEffect(() => {
-    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}service_providers`, JSON.stringify(serviceProviders));
-  }, [serviceProviders]);
+    return {
+      success: true,
+      message: `Subscription successfully activated on ${provider}! Welcome to MARS Cashflow Full Operating Tier.`,
+    };
+  };
 
-  useEffect(() => {
-    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}recurring_tasks`, JSON.stringify(recurringTasks));
-  }, [recurringTasks]);
-
-  useEffect(() => {
-    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}audit_trail`, JSON.stringify(auditTrail));
-  }, [auditTrail]);
-
-  const userRoles: RoleAssignmentEntity[] = [
-    {
-      id: 'role-1',
-      userId: currentUser?.id || 'usr-1',
-      role: 'LANDLORD',
-      workspaceTitle: 'Owner / Landlord Portfolio',
-      createdAt: Date.now(),
-    },
-    {
-      id: 'role-2',
-      userId: currentUser?.id || 'usr-1',
-      role: 'MANAGER',
-      workspaceTitle: 'Caretaker Ground Management',
-      createdAt: Date.now(),
-    },
-    {
-      id: 'role-3',
-      userId: currentUser?.id || 'usr-1',
-      role: 'TENANT',
-      workspaceTitle: 'Tenant Portal (Unit 101)',
-      createdAt: Date.now(),
-    },
-    {
-      id: 'role-4',
-      userId: currentUser?.id || 'usr-1',
-      role: 'SERVICE_PROVIDER',
-      workspaceTitle: 'Contractor Work Orders',
-      createdAt: Date.now(),
-    },
-  ];
-
+  // Audit Logging
   const addAuditEvent = (
     eventType: string,
     resourceType: AuditEventEntity['resourceType'],
@@ -266,7 +393,7 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const newEvent: AuditEventEntity = {
       id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       actorUserId: currentUser?.id || 'sys-anon',
-      actorName: currentUser?.displayName ? `${currentUser.displayName} (${currentUser.primaryRole})` : 'System User',
+      actorName: currentUser?.displayName ? `${currentUser.displayName} (${currentRole})` : 'System User',
       eventType,
       resourceType,
       resourceId,
@@ -276,168 +403,221 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuditTrail((prev) => [newEvent, ...prev]);
   };
 
+  // Context Switcher & Auth
+  const switchContext = (contextId: string) => {
+    if (!currentUser) return;
+    const updated = { ...currentUser, activeContextId: contextId };
+    setCurrentUser(updated);
+    saveToStorage(STORAGE_KEYS.USER, updated);
+    addAuditEvent('CONTEXT_SWITCHED', 'SYSTEM', contextId, `Switched working context to ${contextId}`);
+  };
+
+  const switchWorkspace = (roleKey: UserRoleKey, _title?: string) => {
+    if (!currentUser) return;
+    const targetRole = currentUser.assignedRoles.find((r) => r.roleKey === roleKey);
+    if (targetRole) {
+      switchContext(targetRole.id);
+    } else {
+      // Add role assignment if missing
+      const newRole: RoleAssignment = {
+        id: `role-${roleKey.toLowerCase()}-${Date.now()}`,
+        roleKey,
+        assignedAt: Date.now(),
+      };
+      const updatedUser: UserEntity = {
+        ...currentUser,
+        assignedRoles: [...currentUser.assignedRoles, newRole],
+        activeContextId: newRole.id,
+      };
+      setCurrentUser(updatedUser);
+      saveToStorage(STORAGE_KEYS.USER, updatedUser);
+    }
+  };
+
   const login = (identifier: string, _pin: string, role: UserRoleKey = 'LANDLORD'): boolean => {
-    const isLandlord = identifier.includes('landlord') || role === 'LANDLORD';
-    const isManager = identifier.includes('caretaker') || identifier.includes('manager') || role === 'MANAGER';
-    const isTenant = identifier.includes('tenant') || role === 'TENANT';
-    const isVendor = identifier.includes('vendor') || identifier.includes('contractor') || role === 'SERVICE_PROVIDER';
-
-    const selectedRole: UserRoleKey = isLandlord
-      ? 'LANDLORD'
-      : isManager
-      ? 'MANAGER'
-      : isTenant
-      ? 'TENANT'
-      : isVendor
-      ? 'SERVICE_PROVIDER'
-      : role;
-
-    const userObj: UserEntity = {
-      id: `user-${selectedRole.toLowerCase()}-${Date.now()}`,
-      phoneNumber: identifier.includes('@') ? '0772001122' : identifier,
-      email: identifier.includes('@') ? identifier : `${selectedRole.toLowerCase()}@marscashflow.ug`,
-      displayName: isLandlord
-        ? 'Dr. Michael Ssempa'
-        : isManager
-        ? 'Peter Ssekandi'
-        : isTenant
-        ? 'John Mukasa'
-        : isVendor
-        ? 'Alex Kato'
-        : 'Authorized User',
-      primaryRole: selectedRole,
-      accountStatus: 'ACTIVE',
-      isDemo: true,
-      organizationId: 'org-mars-ug',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+    const now = Date.now();
+    const newUser: UserEntity = {
+      id: `usr-${now}`,
+      phone: identifier.includes('@') ? '0772123456' : identifier,
+      email: identifier.includes('@') ? identifier : `${role.toLowerCase()}@marscashflow.ug`,
+      displayName: role === 'LANDLORD' ? 'Property Owner' : role === 'MANAGER' ? 'Estate Manager' : role === 'TENANT' ? 'Resident Tenant' : 'Field Technician',
+      primaryRole: role,
+      assignedRoles: [
+        { id: `role-primary-${now}`, roleKey: role, assignedAt: now, permissions: ['ALL'] },
+      ],
+      activeContextId: `role-primary-${now}`,
+      createdAt: now,
+      trialStartDate: now,
+      trialEndDate: now + 60 * 86400000,
+      subscriptionStatus: 'TRIAL_ACTIVE',
+      subscriptionPlan: 'FREE_TRIAL',
+      language: language,
     };
-
-    setCurrentUser(userObj);
-    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}user`, JSON.stringify(userObj));
-
-    setCurrentWorkspace({
-      id: `ws-${Date.now()}`,
-      userId: userObj.id,
-      role: selectedRole,
-      workspaceTitle: `${userObj.displayName} Workspace`,
-      createdAt: Date.now(),
-    });
-
-    addAuditEvent('LOGIN', 'AUTH', userObj.id, `User signed in successfully via ${userObj.primaryRole} role.`);
+    setCurrentUser(newUser);
+    saveToStorage(STORAGE_KEYS.USER, newUser);
+    addAuditEvent('USER_LOGIN', 'AUTH', newUser.id, `User logged in with ${role} authority`);
     return true;
   };
 
-  const register = (data: { displayName: string; phone: string; email: string; role: UserRoleKey; orgName: string }): boolean => {
-    const userObj: UserEntity = {
-      id: `user-${Date.now()}`,
-      phoneNumber: data.phone,
+  const register = (data: { displayName: string; phone: string; email: string; role: UserRoleKey; propertyName?: string }): boolean => {
+    const now = Date.now();
+    const newUser: UserEntity = {
+      id: `usr-${now}`,
+      phone: data.phone,
       email: data.email,
       displayName: data.displayName,
       primaryRole: data.role,
-      accountStatus: 'ACTIVE',
-      isDemo: true,
-      organizationId: data.orgName || 'MARS Uganda Properties',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      assignedRoles: [
+        { id: `role-primary-${now}`, roleKey: data.role, assignedAt: now, permissions: ['ALL'] },
+      ],
+      activeContextId: `role-primary-${now}`,
+      createdAt: now,
+      trialStartDate: now,
+      trialEndDate: now + 60 * 86400000,
+      subscriptionStatus: 'TRIAL_ACTIVE',
+      subscriptionPlan: 'FREE_TRIAL',
+      language: language,
     };
+    setCurrentUser(newUser);
+    saveToStorage(STORAGE_KEYS.USER, newUser);
 
-    setCurrentUser(userObj);
-    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}user`, JSON.stringify(userObj));
+    if (data.propertyName && (data.role === 'LANDLORD' || data.role === 'MANAGER')) {
+      addProperty({ name: data.propertyName, location: 'Kampala, Uganda', totalUnits: 1 });
+    }
 
-    setCurrentWorkspace({
-      id: `ws-${Date.now()}`,
-      userId: userObj.id,
-      role: data.role,
-      workspaceTitle: `${data.orgName || data.displayName} Workspace`,
-      createdAt: Date.now(),
-    });
-
-    addAuditEvent('REGISTER', 'AUTH', userObj.id, `New user ${data.displayName} created account under ${data.role}.`);
+    addAuditEvent('USER_REGISTERED', 'AUTH', newUser.id, `Registered new ${data.role} account with 2-Month Free Trial`);
     return true;
   };
 
   const logout = () => {
-    if (currentUser) {
-      addAuditEvent('LOGOUT', 'AUTH', currentUser.id, `User ${currentUser.displayName} signed out of session.`);
-    }
     setCurrentUser(null);
-    setCurrentWorkspace(null);
-    localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}user`);
+    localStorage.removeItem(STORAGE_KEYS.USER);
+    addAuditEvent('USER_LOGOUT', 'AUTH', 'session', 'User logged out');
   };
 
-  const switchWorkspace = (roleKey: UserRoleKey, workspaceTitle?: string) => {
-    if (!currentUser) return;
-    const updatedUser = { ...currentUser, primaryRole: roleKey };
-    setCurrentUser(updatedUser);
-    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}user`, JSON.stringify(updatedUser));
-
-    setCurrentWorkspace({
-      id: `ws-${roleKey}-${Date.now()}`,
-      userId: currentUser.id,
-      role: roleKey,
-      workspaceTitle: workspaceTitle || `${currentUser.displayName} (${roleKey})`,
+  // Property & Tenant Actions
+  const addProperty = (property: { name: string; location: string; totalUnits: number; propertyType?: PropertyEntity['propertyType'] }) => {
+    const id = `prop-${Date.now()}`;
+    const newProp: PropertyEntity = {
+      id,
+      name: property.name,
+      location: property.location,
+      totalUnits: Number(property.totalUnits) || 1,
+      occupiedUnits: 0,
+      monthlyRevenue: 0,
+      propertyType: property.propertyType || 'Residential',
       createdAt: Date.now(),
-    });
-
-    addAuditEvent('ROLE_SWITCH', 'AUTH', currentUser.id, `Switched active workspace role to ${roleKey}.`);
+      ownerId: currentUser?.id,
+    };
+    setProperties((prev) => [newProp, ...prev]);
+    addAuditEvent('PROPERTY_ADDED', 'PROPERTY', id, `Added property "${property.name}" with ${property.totalUnits} units`);
+    return { success: true, propertyId: id };
   };
 
+  const addTenant = (tenant: {
+    name: string;
+    phone: string;
+    propertyName: string;
+    propertyId?: string;
+    unitName: string;
+    unitId?: string;
+    monthlyRent: number;
+    arrears?: number;
+    advanceBalance?: number;
+    nin?: string;
+  }) => {
+    const id = `ten-${Date.now()}`;
+    const newTenant: TenantEntity = {
+      id,
+      name: tenant.name,
+      phone: tenant.phone,
+      propertyName: tenant.propertyName,
+      propertyId: tenant.propertyId,
+      unitName: tenant.unitName,
+      unitId: tenant.unitId,
+      monthlyRent: Number(tenant.monthlyRent) || 0,
+      depositPaid: 0,
+      arrears: Number(tenant.arrears) || 0,
+      advanceBalance: Number(tenant.advanceBalance) || 0,
+      leaseStartDate: new Date().toISOString().split('T')[0],
+      leaseEndDate: new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0],
+      status: (Number(tenant.arrears) || 0) > 0 ? 'Overdue' : 'Current',
+      nextDueDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+      nin: tenant.nin,
+      createdAt: Date.now(),
+    };
+
+    setTenants((prev) => [newTenant, ...prev]);
+
+    // Update property occupied units count
+    setProperties((prev) =>
+      prev.map((p) => {
+        if (p.name === tenant.propertyName || p.id === tenant.propertyId) {
+          return {
+            ...p,
+            occupiedUnits: (p.occupiedUnits || 0) + 1,
+            monthlyRevenue: (p.monthlyRevenue || 0) + newTenant.monthlyRent,
+          };
+        }
+        return p;
+      })
+    );
+
+    addAuditEvent('TENANT_ADDED', 'TENANT', id, `Onboarded tenant ${tenant.name} to ${tenant.propertyName} (${tenant.unitName})`);
+    return { success: true, tenantId: id };
+  };
+
+  // Payment Recording
   const recordPayment = (payment: {
     tenantName: string;
+    tenantPhone?: string;
     amount: number;
     paymentMethod: string;
-    notes: string;
+    notes?: string;
     propertyName?: string;
     unitName?: string;
-  }): { success: boolean; paymentId?: string; message: string } => {
-    const matchedTenant = tenants.find((t) => t.name.toLowerCase() === payment.tenantName.toLowerCase()) || tenants[0];
+    periodCovered?: string;
+  }) => {
+    const id = `pay-${Date.now()}`;
+    const receiptNumber = `MARS-RCT-${Math.floor(100000 + Math.random() * 900000)}`;
 
-    const receiptNum = `MARS-RCT-${Math.floor(100000 + Math.random() * 900000)}`;
-    const prefix = payment.paymentMethod.includes('Airtel')
-      ? 'AIR-UG'
-      : payment.paymentMethod.includes('MTN')
-      ? 'MTN-UG'
-      : 'BNK-UG';
-    const extRef = `${prefix}-${Math.floor(1000000 + Math.random() * 9000000)}`;
+    const targetTenant = tenants.find((t) => t.name === payment.tenantName);
+    const propertyName = payment.propertyName || targetTenant?.propertyName || 'Estate Property';
+    const unitName = payment.unitName || targetTenant?.unitName || 'Unit';
 
-    const newPaymentId = `pay-${Date.now()}`;
     const newPayment: PaymentEntity = {
-      id: newPaymentId,
-      tenantId: matchedTenant?.id || 'ten-anon',
-      propertyId: matchedTenant?.propertyId || properties[0]?.id || 'prop-1',
-      unitId: matchedTenant?.unitId || 'unit-1',
-      tenantName: payment.tenantName || matchedTenant?.name || 'Valued Tenant',
-      unitName: payment.unitName || matchedTenant?.unitName || 'Unit 101',
-      propertyName: payment.propertyName || matchedTenant?.propertyName || 'Kampala Apartments',
-      amount: payment.amount,
-      currency: 'UGX',
-      paymentMethod: payment.paymentMethod,
-      paymentStatus: 'SUCCESSFUL',
-      externalReference: extRef,
-      receiptNumber: receiptNum,
-      recordedBy: currentUser?.displayName ? `${currentUser.displayName} (${currentUser.primaryRole})` : 'Peter Ssekandi (Caretaker)',
-      notes: payment.notes || 'Rent payment recorded via MARS Ledger',
+      id,
+      receiptNumber,
+      tenantName: payment.tenantName,
+      tenantPhone: payment.tenantPhone || targetTenant?.phone,
+      tenantId: targetTenant?.id,
+      propertyName,
+      unitName,
+      amount: Number(payment.amount),
       date: new Date().toISOString().split('T')[0],
       paymentTimestamp: Date.now(),
+      paymentMethod: payment.paymentMethod,
+      transactionReference: `UGX-${Date.now().toString().slice(-6)}`,
+      notes: payment.notes || 'Verified rent collection',
+      issuedByName: currentUser?.displayName || 'Caretaker Desk',
       syncStatus: 'SYNCED',
       createdAt: Date.now(),
     };
 
     setPayments((prev) => [newPayment, ...prev]);
 
-    // Recalculate tenant arrears
-    if (matchedTenant) {
-      setTenants((prevTenants) =>
-        prevTenants.map((t) => {
-          if (t.id === matchedTenant.id) {
-            const newArrears = Math.max(0, t.arrears - payment.amount);
-            const remainingRent = Math.max(0, t.rentDue - payment.amount);
+    // Adjust tenant arrears or advance balance
+    if (targetTenant) {
+      setTenants((prev) =>
+        prev.map((t) => {
+          if (t.id === targetTenant.id) {
+            const remainingArrears = Math.max(0, t.arrears - payment.amount);
+            const extra = Math.max(0, payment.amount - t.arrears);
             return {
               ...t,
-              arrears: newArrears,
-              rentDue: remainingRent,
-              paymentStatus: newArrears === 0 && remainingRent === 0 ? 'Paid' : 'Pending',
+              arrears: remainingArrears,
+              advanceBalance: (t.advanceBalance || 0) + extra,
+              status: remainingArrears === 0 ? 'Current' : 'Overdue',
             };
           }
           return t;
@@ -445,56 +625,146 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
     }
 
-    addAuditEvent(
-      'PAYMENT_RECORDED',
-      'PAYMENT',
-      newPaymentId,
-      `Recorded rent payment of UGX ${payment.amount.toLocaleString()} for ${payment.tenantName} (${matchedTenant?.unitName || 'Unit'}). Receipt #${receiptNum}`
-    );
+    addAuditEvent('PAYMENT_RECORDED', 'PAYMENT', id, `Recorded payment UGX ${payment.amount.toLocaleString()} from ${payment.tenantName}. Receipt: ${receiptNumber}`);
 
     return {
       success: true,
-      paymentId: newPaymentId,
-      message: `Payment of UGX ${payment.amount.toLocaleString()} recorded successfully with receipt ${receiptNum}.`,
+      paymentId: id,
+      message: `Payment of UGX ${payment.amount.toLocaleString()} recorded. Receipt #${receiptNumber} generated.`,
     };
   };
 
+  // Mobile Money Backend Adapter Simulation
+  const processMobileMoneyPayment = async (params: {
+    provider: 'MTN_MOMO' | 'AIRTEL_MONEY';
+    phone: string;
+    amount: number;
+    tenantName: string;
+    propertyName: string;
+    unitName: string;
+    notes?: string;
+  }): Promise<{ success: boolean; paymentId?: string; receiptNumber?: string; message: string }> => {
+    // Simulate mobile money push prompt and network settlement delay
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    const methodLabel = params.provider === 'MTN_MOMO' ? 'MTN Mobile Money' : 'Airtel Money';
+    const result = recordPayment({
+      tenantName: params.tenantName,
+      tenantPhone: params.phone,
+      amount: params.amount,
+      paymentMethod: methodLabel,
+      propertyName: params.propertyName,
+      unitName: params.unitName,
+      notes: params.notes || `Direct ${methodLabel} instant digital settlement (${params.phone})`,
+    });
+
+    const payment = payments.find((p) => p.id === result.paymentId);
+
+    return {
+      success: true,
+      paymentId: result.paymentId,
+      receiptNumber: payment?.receiptNumber || 'MARS-RCT-DIRECT',
+      message: `Mobile Money payment of UGX ${params.amount.toLocaleString()} verified and settled. Official receipt generated.`,
+    };
+  };
+
+  // Expense Recording
   const addExpense = (expense: {
     propertyName: string;
     description: string;
     amount: number;
     category: ExpenseEntity['category'];
-    receiptPhotoUri?: string | null;
+    recipientName?: string;
+    recipientPhone?: string;
+    receiptPhotoUrl?: string;
+    linkedMaintenanceId?: string;
   }) => {
-    const matchedProp = properties.find((p) => p.name.toLowerCase() === expense.propertyName.toLowerCase()) || properties[0];
-    const newExpenseId = `exp-${Date.now()}`;
+    const id = `exp-${Date.now()}`;
     const newExpense: ExpenseEntity = {
-      id: newExpenseId,
-      propertyId: matchedProp?.id || 'prop-1',
-      propertyName: expense.propertyName || matchedProp?.name || 'Kampala Apartments',
+      id,
+      propertyName: expense.propertyName,
       description: expense.description,
-      amount: expense.amount,
-      currency: 'UGX',
+      amount: Number(expense.amount),
       category: expense.category,
-      receiptPhotoUri: expense.receiptPhotoUri || null,
-      recordedBy: currentUser?.displayName ? `${currentUser.displayName} (${currentUser.primaryRole})` : 'Peter Ssekandi (Caretaker)',
-      status: 'APPROVED',
       date: new Date().toISOString().split('T')[0],
       expenseTimestamp: Date.now(),
+      recipientName: expense.recipientName || 'Contractor / Vendor',
+      recipientPhone: expense.recipientPhone,
+      receiptPhotoUrl: expense.receiptPhotoUrl,
+      authorizedByName: currentUser?.displayName || 'Authorized Landlord',
+      linkedMaintenanceId: expense.linkedMaintenanceId,
       syncStatus: 'SYNCED',
       createdAt: Date.now(),
     };
 
     setExpenses((prev) => [newExpense, ...prev]);
+    addAuditEvent('EXPENSE_CREATED', 'EXPENSE', id, `Logged expense UGX ${expense.amount.toLocaleString()} for "${expense.description}" under ${expense.category}`);
+
+    return { success: true, expenseId: id, message: 'Expense voucher successfully approved and logged to ledger.' };
+  };
+
+  // MARS Projects Uganda Maintenance & Project Service Integration
+  const requestMarsProjectsService = (request: {
+    propertyName: string;
+    buildingName?: string;
+    unitName: string;
+    tenantName: string;
+    tenantPhone?: string;
+    serviceCategory: string;
+    issue: string;
+    urgency: MaintenanceUrgency;
+    priority?: MaintenanceEntity['priority'];
+    preferredDate?: string;
+    preferredTime?: string;
+    contactPhone?: string;
+    photos?: string[];
+    additionalNotes?: string;
+    estimatedCost?: number;
+  }) => {
+    const id = `maint-${Date.now()}`;
+    const ticketNumber = `MPU-TK-${Math.floor(10000 + Math.random() * 90000)}`;
+
+    const newTicket: MaintenanceEntity = {
+      id,
+      propertyName: request.propertyName,
+      buildingName: request.buildingName,
+      unitName: request.unitName,
+      tenantName: request.tenantName,
+      tenantPhone: request.tenantPhone || request.contactPhone,
+      serviceCategory: request.serviceCategory,
+      issue: request.issue,
+      priority: request.priority || (request.urgency === 'Emergency' ? 'EMERGENCY' : request.urgency === 'Urgent' ? 'HIGH' : 'MEDIUM'),
+      urgency: request.urgency,
+      preferredDate: request.preferredDate,
+      preferredTime: request.preferredTime,
+      contactPhone: request.contactPhone,
+      photos: request.photos || [],
+      additionalNotes: request.additionalNotes,
+      status: 'SUBMITTED',
+      estimatedCost: request.estimatedCost || 0,
+      isMarsProjectsUganda: true,
+      marsProjectsTicketNumber: ticketNumber,
+      syncState: 'SYNCED',
+      reportedTimestamp: Date.now(),
+      createdAt: Date.now(),
+      date: new Date().toISOString().split('T')[0],
+    };
+
+    setMaintenance((prev) => [newTicket, ...prev]);
 
     addAuditEvent(
-      'EXPENSE_CREATED',
-      'EXPENSE',
-      newExpenseId,
-      `Recorded operating expense UGX ${expense.amount.toLocaleString()} [${expense.category}] for ${expense.propertyName}: ${expense.description}`
+      'MAINTENANCE_SUBMITTED',
+      'MAINTENANCE',
+      id,
+      `Service request ${ticketNumber} (${request.serviceCategory}) dispatched to MARS Projects Uganda for ${request.propertyName} ${request.unitName}`
     );
 
-    return { success: true, message: 'Expense added to ledger successfully.' };
+    return {
+      success: true,
+      ticketId: id,
+      ticketNumber,
+      message: `Maintenance & Project Request #${ticketNumber} submitted directly to MARS Projects Uganda. Inspection & quotation dispatch pending.`,
+    };
   };
 
   const addMaintenance = (item: {
@@ -502,114 +772,152 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     unitName: string;
     tenantName: string;
     issue: string;
-    priority: MaintenanceEntity['priority'];
-    estimatedCost: number;
+    priority?: MaintenanceEntity['priority'];
+    estimatedCost?: number;
     assignedProviderName?: string;
   }) => {
-    const matchedProp = properties.find((p) => p.name.toLowerCase() === item.propertyName.toLowerCase()) || properties[0];
-    const newMaintId = `maint-${Date.now()}`;
-    const newMaint: MaintenanceEntity = {
-      id: newMaintId,
-      propertyId: matchedProp?.id || 'prop-1',
-      propertyName: item.propertyName || matchedProp?.name || 'Kampala Apartments',
-      unitId: 'unit-custom',
+    const res = requestMarsProjectsService({
+      propertyName: item.propertyName,
       unitName: item.unitName,
       tenantName: item.tenantName,
+      serviceCategory: 'General Repairs',
       issue: item.issue,
-      priority: item.priority,
-      status: 'Pending',
-      assignedProviderName: item.assignedProviderName || 'Alex Kato (Plumber)',
-      estimatedCost: item.estimatedCost,
-      actualCost: 0,
-      date: new Date().toISOString().split('T')[0],
-      reportedTimestamp: Date.now(),
-      syncStatus: 'SYNCED',
-      createdAt: Date.now(),
-    };
-
-    setMaintenance((prev) => [newMaint, ...prev]);
-
-    addAuditEvent(
-      'MAINTENANCE_LOGGED',
-      'MAINTENANCE',
-      newMaintId,
-      `Logged repair ticket [${item.priority}] at ${item.propertyName} ${item.unitName}: ${item.issue}`
-    );
-
-    return { success: true, message: 'Maintenance issue logged and technician queued.' };
+      urgency: item.priority === 'HIGH' ? 'Urgent' : 'Normal',
+      priority: item.priority || 'MEDIUM',
+      estimatedCost: item.estimatedCost || 0,
+    });
+    return { success: res.success, message: res.message };
   };
 
-  const updateMaintenanceStatus = (id: string, status: MaintenanceEntity['status'], actualCost?: number) => {
+  const updateMaintenanceStatus = (id: string, status: MaintenanceStatus, actualCost?: number) => {
     setMaintenance((prev) =>
       prev.map((m) => {
         if (m.id === id) {
-          const updated = {
+          return {
             ...m,
             status,
             actualCost: actualCost !== undefined ? actualCost : m.actualCost,
+            completedAt: status === 'COMPLETED' || status === 'CLOSED' ? Date.now() : m.completedAt,
           };
-          addAuditEvent('MAINTENANCE_UPDATED', 'MAINTENANCE', id, `Updated ticket status to '${status}' for issue: ${m.issue}`);
-          return updated;
         }
         return m;
       })
     );
+    addAuditEvent('MAINTENANCE_STATUS_UPDATED', 'MAINTENANCE', id, `Updated ticket status to ${status}`);
   };
 
-  const addProperty = (property: { name: string; location: string; totalUnits: number }) => {
-    const newPropId = `prop-${Date.now()}`;
-    const newProp: PropertyEntity = {
-      id: newPropId,
-      ownerUserId: currentUser?.id || 'user-landlord-1',
-      name: property.name,
-      location: property.location,
-      totalUnits: property.totalUnits,
-      currency: 'UGX',
-      syncStatus: 'SYNCED',
-      lastSyncedAt: Date.now(),
-      createdAt: Date.now(),
+  const submitMaintenanceQuotation = (
+    maintenanceId: string,
+    quotationData: Omit<MaintenanceQuotation, 'id' | 'submittedAt' | 'status'>
+  ) => {
+    const quoteId = `quote-${Date.now()}`;
+    const fullQuotation: MaintenanceQuotation = {
+      ...quotationData,
+      id: quoteId,
+      submittedAt: Date.now(),
+      status: 'PENDING',
     };
 
-    setProperties((prev) => [...prev, newProp]);
+    setMaintenance((prev) =>
+      prev.map((m) => {
+        if (m.id === maintenanceId) {
+          return {
+            ...m,
+            status: 'QUOTATION_PROVIDED',
+            quotation: fullQuotation,
+            estimatedCost: fullQuotation.totalCost,
+          };
+        }
+        return m;
+      })
+    );
 
-    addAuditEvent('PROPERTY_ADDED', 'PROPERTY', newPropId, `Registered new real estate property: ${property.name} (${property.totalUnits} Units).`);
+    addAuditEvent(
+      'QUOTATION_SUBMITTED',
+      'MAINTENANCE',
+      maintenanceId,
+      `MARS Projects Uganda provided quotation of UGX ${fullQuotation.totalCost.toLocaleString()} for ticket #${maintenanceId}`
+    );
   };
 
-  const addTenant = (tenant: {
-    name: string;
-    phone: string;
-    propertyName: string;
-    unitName: string;
-    monthlyRent: number;
-    arrears: number;
-  }) => {
-    const matchedProp = properties.find((p) => p.name.toLowerCase() === tenant.propertyName.toLowerCase()) || properties[0];
-    const newTenId = `ten-${Date.now()}`;
-    const newTenant: TenantEntity = {
-      id: newTenId,
-      userId: `usr-${newTenId}`,
-      propertyId: matchedProp?.id || 'prop-1',
-      unitId: `unit-${Date.now()}`,
-      name: tenant.name,
-      phone: tenant.phone,
-      unitName: tenant.unitName,
-      propertyName: tenant.propertyName,
-      monthlyRent: tenant.monthlyRent,
-      rentDue: tenant.monthlyRent + tenant.arrears,
-      arrears: tenant.arrears,
-      advanceCredit: 0,
-      paymentStatus: tenant.arrears > 0 ? 'Overdue' : 'Paid',
-      leaseStart: Date.now(),
-      leaseEnd: Date.now() + 365 * 86400000,
-      syncStatus: 'SYNCED',
-      createdAt: Date.now(),
+  const approveMaintenanceQuotation = (maintenanceId: string) => {
+    setMaintenance((prev) =>
+      prev.map((m) => {
+        if (m.id === maintenanceId && m.quotation) {
+          return {
+            ...m,
+            status: 'APPROVED',
+            approvedCost: m.quotation.totalCost,
+            quotation: {
+              ...m.quotation,
+              status: 'APPROVED',
+            },
+          };
+        }
+        return m;
+      })
+    );
+
+    addAuditEvent('QUOTATION_APPROVED', 'MAINTENANCE', maintenanceId, `Landlord approved MARS Projects Uganda quotation`);
+  };
+
+  const declineMaintenanceQuotation = (maintenanceId: string, reason?: string) => {
+    setMaintenance((prev) =>
+      prev.map((m) => {
+        if (m.id === maintenanceId && m.quotation) {
+          return {
+            ...m,
+            status: 'DECLINED',
+            quotation: {
+              ...m.quotation,
+              status: 'REJECTED',
+              inspectorNotes: reason ? `Declined by Landlord: ${reason}` : 'Declined by Landlord',
+            },
+          };
+        }
+        return m;
+      })
+    );
+
+    addAuditEvent('QUOTATION_DECLINED', 'MAINTENANCE', maintenanceId, `Landlord declined quotation: ${reason || 'No reason provided'}`);
+  };
+
+  const linkMaintenanceToCashflowExpense = (maintenanceId: string) => {
+    const ticket = maintenance.find((m) => m.id === maintenanceId);
+    if (!ticket) return { success: false, message: 'Ticket not found' };
+    if (ticket.linkedExpenseId) {
+      return { success: false, message: 'This maintenance ticket is already linked to an expense voucher.' };
+    }
+
+    const expenseAmount = ticket.actualCost || ticket.approvedCost || ticket.estimatedCost;
+    if (expenseAmount <= 0) {
+      return { success: false, message: 'Cannot create an expense voucher with zero amount. Enter approved or actual cost first.' };
+    }
+
+    const res = addExpense({
+      propertyName: ticket.propertyName,
+      description: `[MARS Projects ${ticket.marsProjectsTicketNumber || ticket.id}] ${ticket.serviceCategory} - ${ticket.issue}`,
+      amount: expenseAmount,
+      category: 'Maintenance',
+      recipientName: 'MARS Projects Uganda',
+      recipientPhone: MARS_PROJECTS_CONTACT.phone,
+      linkedMaintenanceId: ticket.id,
+    });
+
+    if (res.success) {
+      setMaintenance((prev) =>
+        prev.map((m) => (m.id === maintenanceId ? { ...m, linkedExpenseId: res.expenseId } : m))
+      );
+    }
+
+    return {
+      success: true,
+      expenseId: res.expenseId,
+      message: `Expense voucher for UGX ${expenseAmount.toLocaleString()} generated and linked to maintenance record #${ticket.marsProjectsTicketNumber || ticket.id}.`,
     };
-
-    setTenants((prev) => [newTenant, ...prev]);
-
-    addAuditEvent('TENANT_REGISTERED', 'TENANT', newTenId, `Onboarded new occupant ${tenant.name} to ${tenant.propertyName} ${tenant.unitName}.`);
   };
 
+  // Service Provider & Contractor Management
   const addServiceProvider = (provider: {
     name: string;
     serviceType: ServiceProviderEntity['serviceType'];
@@ -617,44 +925,80 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     rate: string;
     assignedProperty: string;
   }) => {
+    const id = `sp-${Date.now()}`;
     const newSp: ServiceProviderEntity = {
-      id: `sp-${Date.now()}`,
+      id,
       name: provider.name,
       serviceType: provider.serviceType,
       phone: provider.phone,
       rate: provider.rate,
-      rating: 4.8,
-      status: 'Available',
       assignedProperty: provider.assignedProperty,
-      isVerified: true,
+      status: 'Available',
+      rating: 5.0,
+      completedJobsCount: 0,
+      isVettedByMarsProjects: true,
       createdAt: Date.now(),
     };
-
     setServiceProviders((prev) => [newSp, ...prev]);
-    addAuditEvent('VENDOR_ADDED', 'SYSTEM', newSp.id, `Added contractor ${provider.name} (${provider.serviceType}) to directory.`);
+    addAuditEvent('CONTRACTOR_ADDED', 'AUTH', id, `Registered contractor ${provider.name} (${provider.serviceType})`);
   };
 
   const updateServiceProviderStatus = (id: string, status: ServiceProviderEntity['status']) => {
     setServiceProviders((prev) =>
-      prev.map((sp) => {
-        if (sp.id === id) {
-          return { ...sp, status };
-        }
-        return sp;
-      })
+      prev.map((sp) => (sp.id === id ? { ...sp, status } : sp))
     );
   };
 
   const addRecurringTask = (task: Omit<RecurringTask, 'id' | 'status'>) => {
+    const id = `rec-${Date.now()}`;
     const newTask: RecurringTask = {
       ...task,
-      id: `rec-${Date.now()}`,
+      id,
       status: 'Upcoming',
     };
     setRecurringTasks((prev) => [newTask, ...prev]);
-    addAuditEvent('RECURRING_MAINT_ADDED', 'MAINTENANCE', newTask.id, `Created scheduled preventative maintenance: ${task.title}`);
+    addAuditEvent('RECURRING_TASK_ADDED', 'MAINTENANCE', id, `Added recurring schedule: "${task.title}"`);
   };
 
+  // Landlord-Only Manager Controls
+  const addManager = (managerData: Omit<ManagerEntity, 'id' | 'createdAt'>) => {
+    const id = `mgr-${Date.now()}`;
+    const newManager: ManagerEntity = {
+      ...managerData,
+      id,
+      createdAt: Date.now(),
+    };
+    setManagers((prev) => [newManager, ...prev]);
+    addAuditEvent('MANAGER_ADDED', 'AUTH', id, `Landlord assigned new manager ${managerData.name} (${managerData.phone})`);
+  };
+
+  const updateManagerStatus = (managerId: string, status: 'ACTIVE' | 'DISABLED') => {
+    setManagers((prev) =>
+      prev.map((m) => (m.id === managerId ? { ...m, status } : m))
+    );
+    addAuditEvent('MANAGER_STATUS_CHANGED', 'AUTH', managerId, `Manager status changed to ${status}`);
+  };
+
+  const resetManagerPin = (managerId: string, newPin: string) => {
+    setManagers((prev) =>
+      prev.map((m) => (m.id === managerId ? { ...m, pin: newPin } : m))
+    );
+    addAuditEvent('MANAGER_PIN_RESET', 'AUTH', managerId, `Landlord reset PIN for manager #${managerId}`);
+  };
+
+  const updateManagerPermissions = (managerId: string, permissions: ManagerEntity['permissions']) => {
+    setManagers((prev) =>
+      prev.map((m) => (m.id === managerId ? { ...m, permissions } : m))
+    );
+    addAuditEvent('MANAGER_PERMISSIONS_UPDATED', 'AUTH', managerId, `Updated manager authority & expense cap`);
+  };
+
+  const removeManager = (managerId: string) => {
+    setManagers((prev) => prev.filter((m) => m.id !== managerId));
+    addAuditEvent('MANAGER_REMOVED', 'AUTH', managerId, `Removed manager #${managerId}`);
+  };
+
+  // Tenant Reminder & Sync
   const sendTenantReminder = (
     tenantName: string,
     phone: string,
@@ -663,93 +1007,115 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     unitName: string,
     onSuccess?: () => void
   ) => {
-    const notif: NotificationEntity = {
+    const msg = `Dear ${tenantName}, this is a gentle reminder regarding outstanding rent balance of UGX ${amountDue.toLocaleString()} for ${propertyName} (${unitName}). Please settle promptly via Mobile Money to receive your official MARS receipt.`;
+
+    const newNotification: NotificationEntity = {
       id: `notif-${Date.now()}`,
-      recipientPhone: phone,
       recipientName: tenantName,
-      title: 'Rent Payment Due Reminder',
-      message: `Dear ${tenantName}, this is a gentle reminder that your rent of UGX ${amountDue.toLocaleString()} for ${propertyName} (${unitName}) is due. Please settle via MTN/Airtel MoMo. Thank you!`,
+      recipientPhone: phone,
+      title: 'Rent Balance Notice',
+      message: msg,
       channel: 'SMS_GATEWAY',
       deliveryStatus: 'SENT',
       timestamp: Date.now(),
     };
 
-    setNotifications((prev) => [notif, ...prev]);
-
-    addAuditEvent(
-      'NOTIFICATION_SENT',
-      'NOTIFICATION',
-      notif.id,
-      `Dispatched SMS payment reminder to ${tenantName} (${phone}) for outstanding UGX ${amountDue.toLocaleString()}.`
-    );
+    setNotifications((prev) => [newNotification, ...prev]);
+    addAuditEvent('SMS_REMINDER_SENT', 'NOTIFICATION', newNotification.id, `Sent SMS reminder to ${tenantName} (${phone}) for UGX ${amountDue.toLocaleString()}`);
 
     if (onSuccess) onSuccess();
   };
 
   const triggerSync = (callback?: (status: boolean, message: string) => void) => {
     setSyncStatus('SYNCING');
-    setSyncMessage('Synchronizing local SQLite/Room offline ledger with Cloud Firestore...');
+    setSyncMessage('Syncing with Uganda Master Cloud Ledger...');
 
     setTimeout(() => {
       setSyncStatus('SUCCESS');
-      const msg = 'Ledger synchronized successfully. 0 offline changes pending.';
+      const msg = 'Offline cache synchronized with cloud Firestore.';
       setSyncMessage(msg);
-      addAuditEvent('SYNC_EXECUTED', 'SYSTEM', `sync-${Date.now()}`, 'Completed two-way cloud ledger snapshot sync.');
+      addAuditEvent('SYNC_EXECUTED', 'SYSTEM', 'sync-now', msg);
       if (callback) callback(true, msg);
-
-      setTimeout(() => {
-        setSyncStatus('IDLE');
-      }, 4000);
     }, 1200);
   };
 
-  const resetDemoData = () => {
-    setProperties(INITIAL_PROPERTIES);
-    setTenants(INITIAL_TENANTS);
-    setPayments(INITIAL_PAYMENTS);
-    setExpenses(INITIAL_EXPENSES);
-    setMaintenance(INITIAL_MAINTENANCE);
-    setServiceProviders(INITIAL_SERVICE_PROVIDERS);
-    setRecurringTasks(INITIAL_RECURRING_TASKS);
-    setAuditTrail(INITIAL_AUDIT_TRAIL);
-    localStorage.clear();
-    addAuditEvent('DEMO_RESET', 'SYSTEM', 'reset', 'Reset all property, tenant, and ledger data to default Uganda showcase demo.');
+  const resetToCleanDatabase = () => {
+    clearMarsStorage();
+    setProperties([]);
+    setTenants([]);
+    setPayments([]);
+    setExpenses([]);
+    setMaintenance([]);
+    setServiceProviders([]);
+    setRecurringTasks([]);
+    setAuditTrail([]);
+    setManagers([]);
+    window.location.reload();
   };
 
   return (
     <MarsContext.Provider
       value={{
         currentUser,
-        currentWorkspace,
-        userRoles,
+        currentRole,
+        activeContext,
+        authorizedRoles,
         properties,
+        allProperties: properties,
         tenants,
+        allTenants: tenants,
         payments,
+        allPayments: payments,
         expenses,
+        allExpenses: expenses,
         maintenance,
+        allMaintenance: maintenance,
         serviceProviders,
         recurringTasks,
         auditTrail,
+        managers,
         notifications,
+        subscriptionStatus,
+        trialDaysRemaining,
+        trialStartDate,
+        trialEndDate,
+        isTrialActive,
+        isSubscriptionRequired,
+        activateSubscription,
+        language,
+        setLanguage,
+        t,
         syncStatus,
         syncMessage,
-        isDemoMode,
+        triggerSync,
         login,
         register,
         logout,
         switchWorkspace,
-        recordPayment,
-        addExpense,
-        addMaintenance,
-        updateMaintenanceStatus,
+        switchContext,
         addProperty,
         addTenant,
+        recordPayment,
+        processMobileMoneyPayment,
+        addExpense,
+        requestMarsProjectsService,
+        addMaintenance,
+        updateMaintenanceStatus,
+        submitMaintenanceQuotation,
+        approveMaintenanceQuotation,
+        declineMaintenanceQuotation,
+        linkMaintenanceToCashflowExpense,
         addServiceProvider,
         updateServiceProviderStatus,
         addRecurringTask,
+        addManager,
+        updateManagerStatus,
+        resetManagerPin,
+        updateManagerPermissions,
+        removeManager,
         sendTenantReminder,
-        triggerSync,
-        resetDemoData,
+        resetToCleanDatabase,
+        isDemoMode: false,
       }}
     >
       {children}

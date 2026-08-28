@@ -4,6 +4,7 @@ import { formatMoney, formatUgx } from '../utils/formatters';
 import { AddTenantModal } from '../components/AddTenantModal';
 import { AddExpenseModal } from '../components/AddExpenseModal';
 import { LogMaintenanceModal } from '../components/LogMaintenanceModal';
+import { EmptyState } from '../components/EmptyState';
 import {
   Briefcase,
   UserPlus,
@@ -16,7 +17,8 @@ import {
   AlertCircle,
   RefreshCw,
   Search,
-  ExternalLink
+  ExternalLink,
+  Users
 } from 'lucide-react';
 import { TenantEntity } from '../types';
 
@@ -38,6 +40,7 @@ export const CaretakerHubScreen: React.FC<CaretakerHubScreenProps> = ({
     triggerSync,
     recordPayment,
     sendTenantReminder,
+    t,
   } = useMars();
 
   const [showAddTenantModal, setShowAddTenantModal] = useState(false);
@@ -46,12 +49,16 @@ export const CaretakerHubScreen: React.FC<CaretakerHubScreenProps> = ({
 
   // Quick Payment form in Caretaker Hub
   const [selectedTenantId, setSelectedTenantId] = useState(tenants[0]?.id || '');
-  const selectedTenant = tenants.find((t) => t.id === selectedTenantId) || tenants[0];
+  const selectedTenant = tenants.find((item) => item.id === selectedTenantId) || tenants[0];
 
   const [amountInput, setAmountInput] = useState(
-    selectedTenant ? (selectedTenant.arrears > 0 ? selectedTenant.arrears.toString() : selectedTenant.monthlyRent.toString()) : '1200000'
+    selectedTenant
+      ? selectedTenant.arrears > 0
+        ? selectedTenant.arrears.toString()
+        : selectedTenant.monthlyRent.toString()
+      : ''
   );
-  const [phoneInput, setPhoneInput] = useState(selectedTenant?.phone || '0772123456');
+  const [phoneInput, setPhoneInput] = useState(selectedTenant?.phone || '');
   const [method, setMethod] = useState('Mobile Money (MTN)');
   const [notes, setNotes] = useState('Collected by Caretaker on site');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,15 +69,20 @@ export const CaretakerHubScreen: React.FC<CaretakerHubScreenProps> = ({
 
   const handleSelectTenant = (tId: string) => {
     setSelectedTenantId(tId);
-    const t = tenants.find((item) => item.id === tId);
-    if (t) {
-      setPhoneInput(t.phone);
-      setAmountInput(t.arrears > 0 ? t.arrears.toString() : t.monthlyRent.toString());
+    const tItem = tenants.find((item) => item.id === tId);
+    if (tItem) {
+      setPhoneInput(tItem.phone);
+      setAmountInput(tItem.arrears > 0 ? tItem.arrears.toString() : tItem.monthlyRent.toString());
     }
   };
 
   const handleCollectPayment = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedTenant) {
+      setFeedback({ type: 'error', message: 'Please select a tenant.' });
+      return;
+    }
+
     const numAmount = parseFloat(amountInput.replace(/[^0-9]/g, ''));
 
     if (isNaN(numAmount) || numAmount <= 0) {
@@ -83,9 +95,9 @@ export const CaretakerHubScreen: React.FC<CaretakerHubScreenProps> = ({
 
     try {
       const res = recordPayment({
-        tenantName: selectedTenant?.name || 'Occupant',
-        propertyName: selectedTenant?.propertyName || 'Kampala Apartments',
-        unitName: selectedTenant?.unitName || 'Unit 101',
+        tenantName: selectedTenant.name,
+        propertyName: selectedTenant.propertyName,
+        unitName: selectedTenant.unitName,
         amount: numAmount,
         paymentMethod: `${method}${phoneInput ? ` (${phoneInput})` : ''}`,
         notes: notes || 'Ground collection via Caretaker Desk',
@@ -108,15 +120,20 @@ export const CaretakerHubScreen: React.FC<CaretakerHubScreenProps> = ({
   };
 
   const filteredTenants = tenants.filter(
-    (t) =>
-      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.unitName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.propertyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.phone.includes(searchQuery)
+    (item) =>
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.unitName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.propertyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.phone.includes(searchQuery)
   );
 
   return (
     <div className="space-y-6 pb-20 max-w-7xl mx-auto px-4 sm:px-6 pt-4">
+      {/* Modals */}
+      <AddTenantModal isOpen={showAddTenantModal} onClose={() => setShowAddTenantModal(false)} />
+      <AddExpenseModal isOpen={showAddExpenseModal} onClose={() => setShowAddExpenseModal(false)} />
+      <LogMaintenanceModal isOpen={showLogMaintModal} onClose={() => setShowLogMaintModal(false)} />
+
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -135,21 +152,21 @@ export const CaretakerHubScreen: React.FC<CaretakerHubScreenProps> = ({
             className="px-3.5 py-2 bg-white hover:bg-gray-50 border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <TrendingDown className="w-3.5 h-3.5 text-[#D93838]" />
-            Log Expense
+            <span>Log Expense</span>
           </button>
           <button
             onClick={() => setShowLogMaintModal(true)}
             className="px-3.5 py-2 bg-white hover:bg-gray-50 border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Wrench className="w-3.5 h-3.5 text-amber-500" />
-            Report Repair
+            <span>Report Repair</span>
           </button>
           <button
             onClick={() => setShowAddTenantModal(true)}
             className="px-4 py-2 bg-[#0AB77F] hover:bg-[#07885E] text-white rounded-xl text-xs font-extrabold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <UserPlus className="w-4 h-4" />
-            Add Tenant
+            <span>Add Tenant</span>
           </button>
         </div>
       </div>
@@ -171,209 +188,224 @@ export const CaretakerHubScreen: React.FC<CaretakerHubScreenProps> = ({
         </div>
       )}
 
-      {/* Main Grid: Left is Fast Payment Recorder, Right is Sync & Quick Tenant Table */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Rapid Payment Recorder Card (Left Column) */}
-        <div className="lg:col-span-5 bg-white rounded-3xl p-6 border border-[#DFE8E3] shadow-sm space-y-4">
-          <div className="flex items-center gap-3 border-b border-[#DFE8E3] pb-3">
-            <div className="w-9 h-9 rounded-xl bg-[#0AB77F]/15 flex items-center justify-center text-[#0AB77F]">
-              <Receipt className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-extrabold text-sm text-[#17231E]">Fast Rent Receipting</h3>
-              <p className="text-[11px] text-[#65766F]">Issue instant verified digital receipt</p>
-            </div>
-          </div>
-
-          <form onSubmit={handleCollectPayment} className="space-y-3.5 text-xs">
-            <div>
-              <label className="block font-bold text-[#17231E] mb-1">Target Tenant</label>
-              <select
-                value={selectedTenantId}
-                onChange={(e) => handleSelectTenant(e.target.value)}
-                className="w-full px-3 py-2 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]"
-              >
-                {tenants.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} — {t.propertyName} ({t.unitName}) [
-                    {t.arrears > 0 ? `Owes UGX ${formatMoney(t.arrears)}` : 'Paid Up'}]
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {selectedTenant && (
-              <div className="p-3 bg-[#E2F8EF] rounded-2xl border border-[#0AB77F]/30 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-bold text-[#0AB77F] uppercase block">
-                    {selectedTenant.unitName}
-                  </span>
-                  <span className="font-bold text-xs text-[#17231E]">{selectedTenant.name}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] text-[#65766F] block">Arrears Due</span>
-                  <span
-                    className={`font-black text-xs ${
-                      selectedTenant.arrears > 0 ? 'text-[#D93838]' : 'text-[#0AB77F]'
-                    }`}
-                  >
-                    {formatUgx(selectedTenant.arrears)}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            <div>
-              <label className="block font-bold text-[#17231E] mb-1">Amount Paid (UGX)</label>
-              <input
-                type="number"
-                value={amountInput}
-                onChange={(e) => setAmountInput(e.target.value)}
-                placeholder="1,200,000"
-                className="w-full px-3 py-2 bg-white border border-[#DFE8E3] rounded-xl font-extrabold text-sm text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold text-[#17231E] mb-1">Collection Channel</label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { id: 'Mobile Money (MTN)', label: '🟡 MTN MoMo' },
-                  { id: 'Mobile Money (Airtel)', label: '🔴 Airtel Money' },
-                  { id: 'Cash', label: '💵 Cash Handover' },
-                  { id: 'Bank Transfer', label: '🏦 Bank / POS' },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setMethod(item.id)}
-                    className={`p-2 rounded-xl border text-center font-bold text-[11px] transition-all cursor-pointer ${
-                      method === item.id
-                        ? 'border-[#0AB77F] bg-[#E2F8EF] text-[#17231E]'
-                        : 'border-[#DFE8E3] bg-white text-[#65766F]'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block font-bold text-[#17231E] mb-1">Payer Phone Number</label>
-              <input
-                type="text"
-                value={phoneInput}
-                onChange={(e) => setPhoneInput(e.target.value)}
-                placeholder="0772 123 456"
-                className="w-full px-3 py-2 bg-white border border-[#DFE8E3] rounded-xl text-xs font-semibold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]"
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold text-[#17231E] mb-1">Receipt Memo / Description</label>
-              <input
-                type="text"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Rent settlement"
-                className="w-full px-3 py-2 bg-white border border-[#DFE8E3] rounded-xl text-xs font-semibold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-3 bg-[#0AB77F] hover:bg-[#07885E] text-white font-black text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              {isSubmitting ? 'Logging Payment...' : 'Record Payment & View Receipt'}
-            </button>
-          </form>
-        </div>
-
-        {/* Tenant Roster & Cloud Sync (Right Column) */}
-        <div className="lg:col-span-7 space-y-5">
-          {/* Cloud Sync Strip */}
-          <div className="bg-[#101915] rounded-3xl p-5 text-white flex items-center justify-between border border-white/5 shadow-md">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-[#0AB77F]/20 flex items-center justify-center text-[#62E3B6]">
-                <RefreshCw className={`w-5 h-5 ${syncStatus === 'SYNCING' ? 'animate-spin' : ''}`} />
+      {tenants.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title={t.noTenantsTitle}
+          description={t.noTenantsDesc}
+          actionLabel={t.onboardTenant}
+          onAction={() => setShowAddTenantModal(true)}
+          tips={[
+            'Caretakers can quickly onboard tenants on-site by taking their phone number and assigning a unit.',
+            'Instant digital receipts can be issued on-site when cash or Mobile Money is received.',
+          ]}
+        />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Rapid Payment Recorder Card (Left Column) */}
+          <div className="lg:col-span-5 bg-white rounded-3xl p-6 border border-[#DFE8E3] shadow-sm space-y-4">
+            <div className="flex items-center gap-3 border-b border-[#DFE8E3] pb-3">
+              <div className="w-9 h-9 rounded-xl bg-[#0AB77F]/15 flex items-center justify-center text-[#0AB77F]">
+                <Receipt className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="font-extrabold text-xs text-white">Cloud Firestore & Offline DB</h4>
-                <p className="text-[11px] text-[#9FB2A9]">All offline collections queued for sync</p>
-              </div>
-            </div>
-            <button
-              onClick={() => triggerSync()}
-              disabled={syncStatus === 'SYNCING'}
-              className="px-3.5 py-1.5 bg-[#0AB77F] hover:bg-[#07885E] text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer disabled:opacity-50"
-            >
-              {syncStatus === 'SYNCING' ? 'Syncing...' : 'Sync Now'}
-            </button>
-          </div>
-
-          {/* Tenants Directory Card */}
-          <div className="bg-white rounded-3xl p-6 border border-[#DFE8E3] shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <h3 className="font-extrabold text-sm text-[#17231E]">
-                Occupant Roster ({tenants.length})
-              </h3>
-              <div className="relative w-full sm:w-56">
-                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search tenant or unit..."
-                  className="w-full pl-9 pr-3 py-1.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-semibold focus:outline-hidden focus:border-[#0AB77F]"
-                />
+                <h3 className="font-extrabold text-sm text-[#17231E]">Fast Rent Receipting</h3>
+                <p className="text-[11px] text-[#65766F]">Issue instant verified digital receipt</p>
               </div>
             </div>
 
-            <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
-              {filteredTenants.map((t) => (
-                <div
-                  key={t.id}
-                  className="p-3 bg-[#F5F8F6] border border-[#DFE8E3] rounded-2xl flex items-center justify-between hover:border-[#0AB77F]/40 transition-colors"
+            <form onSubmit={handleCollectPayment} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-bold text-[#17231E] mb-1">Target Tenant</label>
+                <select
+                  value={selectedTenantId}
+                  onChange={(e) => handleSelectTenant(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]"
                 >
-                  <div>
-                    <div className="font-bold text-xs text-[#17231E]">{t.name}</div>
-                    <div className="text-[10px] text-[#65766F]">
-                      {t.propertyName} • {t.unitName} ({t.phone})
-                    </div>
-                    <div className="text-[11px] font-semibold text-[#17231E] mt-0.5">
-                      Rent: {formatUgx(t.monthlyRent)}
-                    </div>
-                  </div>
+                  {tenants.map((tItem) => (
+                    <option key={tItem.id} value={tItem.id}>
+                      {tItem.name} — {tItem.propertyName} ({tItem.unitName}) [
+                      {tItem.arrears > 0 ? `Owes UGX ${formatMoney(tItem.arrears)}` : 'Paid Up'}]
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                  <div className="text-right flex flex-col items-end gap-1">
+              {selectedTenant && (
+                <div className="p-3 bg-[#E2F8EF] rounded-2xl border border-[#0AB77F]/30 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold text-[#0AB77F] uppercase block">
+                      {selectedTenant.unitName}
+                    </span>
+                    <span className="font-bold text-xs text-[#17231E]">{selectedTenant.name}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-[#65766F] block">Arrears Due</span>
                     <span
-                      className={`text-xs font-black ${
-                        t.arrears > 0 ? 'text-[#D93838]' : 'text-[#0AB77F]'
+                      className={`font-black text-xs ${
+                        selectedTenant.arrears > 0 ? 'text-[#D93838]' : 'text-[#0AB77F]'
                       }`}
                     >
-                      {t.arrears > 0 ? `Owes: ${formatUgx(t.arrears)}` : '✅ Paid'}
+                      {formatUgx(selectedTenant.arrears)}
                     </span>
-                    <button
-                      onClick={() => handleSelectTenant(t.id)}
-                      className="px-2.5 py-1 bg-white hover:bg-[#E2F8EF] border border-[#DFE8E3] rounded-lg text-[10px] font-bold text-[#0AB77F] transition-colors cursor-pointer"
-                    >
-                      Select to Pay
-                    </button>
                   </div>
                 </div>
-              ))}
+              )}
+
+              <div>
+                <label className="block font-bold text-[#17231E] mb-1">Amount Paid (UGX)</label>
+                <input
+                  type="text"
+                  value={amountInput}
+                  onChange={(e) => setAmountInput(e.target.value)}
+                  placeholder="e.g. 1,200,000"
+                  className="w-full px-3 py-2 bg-white border border-[#DFE8E3] rounded-xl font-extrabold text-sm text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-[#17231E] mb-1">Collection Channel</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'Mobile Money (MTN)', label: '🟡 MTN MoMo' },
+                    { id: 'Mobile Money (Airtel)', label: '🔴 Airtel Money' },
+                    { id: 'Cash', label: '💵 Cash Handover' },
+                    { id: 'Bank Transfer', label: '🏦 Bank / POS' },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setMethod(item.id)}
+                      className={`p-2 rounded-xl border text-center font-bold text-[11px] transition-all cursor-pointer ${
+                        method === item.id
+                          ? 'border-[#0AB77F] bg-[#E2F8EF] text-[#17231E]'
+                          : 'border-[#DFE8E3] bg-white text-[#65766F]'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-[#17231E] mb-1">Payer Phone Number</label>
+                <input
+                  type="text"
+                  value={phoneInput}
+                  onChange={(e) => setPhoneInput(e.target.value)}
+                  placeholder="0772 123 456"
+                  className="w-full px-3 py-2 bg-white border border-[#DFE8E3] rounded-xl text-xs font-semibold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-[#17231E] mb-1">Receipt Memo / Description</label>
+                <input
+                  type="text"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Rent settlement"
+                  className="w-full px-3 py-2 bg-white border border-[#DFE8E3] rounded-xl text-xs font-semibold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-3 bg-[#0AB77F] hover:bg-[#07885E] active:scale-[0.98] text-white font-black text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{isSubmitting ? 'Logging Payment...' : 'Record Payment & View Receipt'}</span>
+              </button>
+            </form>
+          </div>
+
+          {/* Tenant Roster & Cloud Sync (Right Column) */}
+          <div className="lg:col-span-7 space-y-5">
+            {/* Cloud Sync Strip */}
+            <div className="bg-[#101915] rounded-3xl p-5 text-white flex items-center justify-between border border-white/5 shadow-md">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#0AB77F]/20 text-[#62E3B6] flex items-center justify-center">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-black text-xs text-white">Offline-First Cloud Sync</h4>
+                  <p className="text-[11px] text-[#9FB2A9]">
+                    Status: <strong className="text-[#62E3B6]">{syncStatus}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => triggerSync()}
+                className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-[#62E3B6]" />
+                <span>Sync Now</span>
+              </button>
+            </div>
+
+            {/* Quick Tenant Arrears Watchlist */}
+            <div className="bg-white rounded-3xl p-5 border border-[#DFE8E3] shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <h3 className="font-extrabold text-sm text-[#17231E]">
+                  Occupant Roster & Arrears Queue
+                </h3>
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search name, unit, phone..."
+                    className="pl-8 pr-3 py-1.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-medium focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                {filteredTenants.map((tItem) => (
+                  <div
+                    key={tItem.id}
+                    className="p-3 bg-[#F5F8F6] rounded-2xl border border-[#DFE8E3] flex items-center justify-between hover:border-[#0AB77F]/40 transition-colors"
+                  >
+                    <div className="space-y-0.5">
+                      <div className="font-bold text-xs text-[#17231E]">{tItem.name}</div>
+                      <div className="text-[10px] text-[#65766F]">
+                        {tItem.propertyName} • {tItem.unitName} ({tItem.phone})
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <div
+                          className={`text-xs font-black ${
+                            tItem.arrears > 0 ? 'text-[#D93838]' : 'text-[#0AB77F]'
+                          }`}
+                        >
+                          {tItem.arrears > 0 ? formatUgx(tItem.arrears) : 'Paid'}
+                        </div>
+                        <div className="text-[10px] text-gray-400">
+                          Rent: {formatUgx(tItem.monthlyRent)}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => handleSelectTenant(tItem.id)}
+                        className="px-2.5 py-1.5 bg-[#0AB77F] hover:bg-[#07885E] text-white text-[11px] font-bold rounded-xl cursor-pointer"
+                      >
+                        Receipt
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
-      </div>
-
-      <AddTenantModal isOpen={showAddTenantModal} onClose={() => setShowAddTenantModal(false)} />
-      <AddExpenseModal isOpen={showAddExpenseModal} onClose={() => setShowAddExpenseModal(false)} />
-      <LogMaintenanceModal isOpen={showLogMaintModal} onClose={() => setShowLogMaintModal(false)} />
+      )}
     </div>
   );
 };

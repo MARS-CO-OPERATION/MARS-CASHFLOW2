@@ -10,7 +10,8 @@ import {
   ArrowRight,
   UserCheck,
   Sparkles,
-  CheckCircle2
+  CheckCircle2,
+  PhoneCall
 } from 'lucide-react';
 
 interface LoginScreenProps {
@@ -18,47 +19,52 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
-  const { login, register } = useMars();
+  const { login, register, language, setLanguage, t } = useMars();
 
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
   const [selectedRole, setSelectedRole] = useState<UserRoleKey>('LANDLORD');
 
   // Login form
-  const [identifier, setIdentifier] = useState('landlord@marscashflow.ug');
-  const [pin, setPin] = useState('1234');
+  const [identifier, setIdentifier] = useState('');
+  const [pin, setPin] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
 
   // Register form
   const [regName, setRegName] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regEmail, setRegEmail] = useState('');
-  const [regOrg, setRegOrg] = useState('');
+  const [regProperty, setRegProperty] = useState('');
   const [regPin, setRegPin] = useState('1234');
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
-    const success = login(identifier, pin, selectedRole);
+    if (!identifier) {
+      setLoginError('Please enter your phone number or email address.');
+      return;
+    }
+
+    const success = login(identifier, pin || '1234', selectedRole);
     if (success) {
       onNavigate(USER_ROLES[selectedRole].defaultRoute);
     } else {
-      setLoginError('Invalid credentials. Please verify your phone/email.');
+      setLoginError('Invalid credentials. Please verify your phone or PIN.');
     }
   };
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
     if (!regName || !regPhone) {
-      setLoginError('Please provide your name and Uganda phone number.');
+      setLoginError('Please provide your legal name and Uganda phone number.');
       return;
     }
 
     const success = register({
       displayName: regName,
       phone: regPhone,
-      email: regEmail || `${regName.toLowerCase().replace(/\s+/g, '')}@marscashflow.ug`,
+      email: regEmail || `${regPhone.replace(/[^0-9]/g, '')}@marscashflow.ug`,
       role: selectedRole,
-      orgName: regOrg,
+      propertyName: regProperty,
     });
 
     if (success) {
@@ -66,35 +72,53 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
     }
   };
 
-  const quickLoginAs = (roleKey: UserRoleKey) => {
-    setSelectedRole(roleKey);
-    const idMap: Record<UserRoleKey, string> = {
-      LANDLORD: 'landlord@marscashflow.ug',
-      MANAGER: 'caretaker@marscashflow.ug',
-      TENANT: 'tenant@marscashflow.ug',
-      SERVICE_PROVIDER: 'contractor@marscashflow.ug',
-      MULTIROLE: 'landlord@marscashflow.ug',
-    };
-    login(idMap[roleKey], '1234', roleKey);
-    onNavigate(USER_ROLES[roleKey].defaultRoute);
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#101915] via-[#17231E] to-[#101915] text-white flex flex-col justify-between p-4 sm:p-6 select-none">
-      <div className="max-w-md w-full mx-auto my-auto space-y-6">
+      {/* Top language selector */}
+      <div className="max-w-md w-full mx-auto flex justify-end">
+        <div className="flex items-center gap-1 bg-white/10 p-1 rounded-xl text-xs font-black">
+          <button
+            onClick={() => setLanguage('en')}
+            className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+              language === 'en' ? 'bg-[#0AB77F] text-white' : 'text-gray-300 hover:text-white'
+            }`}
+          >
+            EN
+          </button>
+          <button
+            onClick={() => setLanguage('lg')}
+            className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+              language === 'lg' ? 'bg-[#0AB77F] text-white' : 'text-gray-300 hover:text-white'
+            }`}
+          >
+            LG (Luganda)
+          </button>
+        </div>
+      </div>
+
+      <div className="max-w-md w-full mx-auto my-auto space-y-5">
         {/* Brand Header */}
-        <div className="text-center space-y-3">
+        <div className="text-center space-y-2">
           <div className="inline-flex w-16 h-16 rounded-2xl bg-gradient-to-br from-[#0AB77F] to-[#07885E] items-center justify-center shadow-xl shadow-emerald-950/50">
             <span className="font-black text-3xl text-white">M</span>
           </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-              MARS CASHFLOW
-            </h1>
-            <p className="text-xs font-bold tracking-widest text-[#62E3B6] uppercase mt-1">
+            <h1 className="text-2xl font-black tracking-tight text-white">MARS CASHFLOW</h1>
+            <p className="text-xs font-bold tracking-widest text-[#62E3B6] uppercase mt-0.5">
               Uganda Real Estate & Rent Ledger
             </p>
           </div>
+        </div>
+
+        {/* 2 Months Free Trial Promo Pill */}
+        <div className="bg-gradient-to-r from-emerald-950/80 to-emerald-900/60 border border-[#0AB77F]/50 rounded-2xl p-3.5 text-center space-y-1 shadow-lg">
+          <div className="flex items-center justify-center gap-2 text-xs font-black text-[#62E3B6]">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>2-MONTH FREE TRIAL INCLUDED</span>
+          </div>
+          <p className="text-[11px] text-gray-300">
+            Full unrestricted access for your first 60 days. Subscription begins from month 3.
+          </p>
         </div>
 
         {/* Auth Card */}
@@ -104,9 +128,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
             <button
               onClick={() => setActiveTab('login')}
               className={`flex-1 py-2 text-xs font-extrabold rounded-xl transition-all cursor-pointer ${
-                activeTab === 'login'
-                  ? 'bg-[#101915] text-white shadow-xs'
-                  : 'text-[#65766F] hover:text-[#17231E]'
+                activeTab === 'login' ? 'bg-[#101915] text-white shadow-xs' : 'text-[#65766F] hover:text-[#17231E]'
               }`}
             >
               Sign In
@@ -114,9 +136,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
             <button
               onClick={() => setActiveTab('register')}
               className={`flex-1 py-2 text-xs font-extrabold rounded-xl transition-all cursor-pointer ${
-                activeTab === 'register'
-                  ? 'bg-[#101915] text-white shadow-xs'
-                  : 'text-[#65766F] hover:text-[#17231E]'
+                activeTab === 'register' ? 'bg-[#101915] text-white shadow-xs' : 'text-[#65766F] hover:text-[#17231E]'
               }`}
             >
               Create Account
@@ -129,75 +149,27 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
             </div>
           )}
 
-          {/* Google Single Sign-On Button */}
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                const { googleSignIn } = await import('../services/firebase');
-                const result = await googleSignIn();
-                if (result?.user) {
-                  login(result.user.email || 'user@marscashflow.ug', '1234', selectedRole);
-                  onNavigate(USER_ROLES[selectedRole].defaultRoute);
-                }
-              } catch (e: any) {
-                setLoginError(e.message || 'Google Sign-In failed.');
-              }
-            }}
-            className="w-full py-2.5 px-4 bg-white border border-[#DFE8E3] hover:bg-[#F5F8F6] rounded-xl text-xs font-bold text-[#17231E] transition-all flex items-center justify-center gap-2.5 shadow-xs cursor-pointer"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24">
-              <path
-                fill="#4285F4"
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-              />
-            </svg>
-            <span>Continue with Google Workspace</span>
-          </button>
-
-          <div className="flex items-center gap-2">
-            <div className="flex-1 h-px bg-[#DFE8E3]" />
-            <span className="text-[10px] uppercase font-bold text-[#65766F]">or with credentials</span>
-            <div className="flex-1 h-px bg-[#DFE8E3]" />
-          </div>
-
-          {/* Role selector chips */}
-          <div>
-            <label className="block text-[11px] font-extrabold text-[#65766F] uppercase tracking-wider mb-2">
-              Select Workspace Role
+          {/* Role Picker for Context */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-extrabold text-[#17231E]">
+              Account Working Authority
             </label>
             <div className="grid grid-cols-2 gap-2">
-              {(['LANDLORD', 'MANAGER', 'TENANT', 'SERVICE_PROVIDER'] as UserRoleKey[]).map((rKey) => {
-                const role = USER_ROLES[rKey];
-                const isChosen = selectedRole === rKey;
+              {(['LANDLORD', 'MANAGER', 'TENANT', 'SERVICE_PROVIDER'] as UserRoleKey[]).map((roleKey) => {
+                const isSelected = selectedRole === roleKey;
                 return (
                   <button
-                    key={rKey}
+                    key={roleKey}
                     type="button"
-                    onClick={() => setSelectedRole(rKey)}
-                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-2 ${
-                      isChosen
-                        ? 'border-[#0AB77F] bg-[#E2F8EF] text-[#17231E] font-bold shadow-xs'
-                        : 'border-[#DFE8E3] bg-white text-[#65766F] hover:bg-gray-50'
+                    onClick={() => setSelectedRole(roleKey)}
+                    className={`py-2 px-3 rounded-xl border text-xs font-extrabold transition-all cursor-pointer text-left flex items-center justify-between ${
+                      isSelected
+                        ? 'bg-[#E2F8EF] border-[#0AB77F] text-[#0AB77F]'
+                        : 'bg-[#F5F8F6] border-[#DFE8E3] text-[#65766F] hover:bg-gray-100'
                     }`}
                   >
-                    <span className="text-lg">{role.icon}</span>
-                    <div className="leading-tight">
-                      <div className="text-xs font-bold">{role.title.split('/')[0]}</div>
-                      <div className="text-[9px] text-[#65766F] truncate">{rKey.toLowerCase()}</div>
-                    </div>
+                    <span>{USER_ROLES[roleKey].title.split('/')[0]}</span>
+                    {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-[#0AB77F]" />}
                   </button>
                 );
               })}
@@ -205,153 +177,122 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
           </div>
 
           {activeTab === 'login' ? (
-            <form onSubmit={handleLogin} className="space-y-3.5 text-xs">
+            <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <label className="block font-bold text-[#17231E] mb-1">
-                  Email or Uganda Phone (077/070...)
+                <label className="block text-xs font-extrabold text-[#17231E] mb-1">
+                  Phone Number or Email
                 </label>
                 <div className="relative">
-                  <Smartphone className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Smartphone className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
                   <input
                     type="text"
+                    required
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="0772 123 456 or name@domain.ug"
-                    className="w-full pl-10 pr-3 py-2.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl font-semibold text-[#17231E] focus:bg-white focus:outline-hidden focus:border-[#0AB77F]"
-                    required
+                    placeholder="e.g. 0772 123 456 or email"
+                    className="w-full pl-9 pr-4 py-2.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-[#17231E] mb-1">
+                <label className="block text-xs font-extrabold text-[#17231E] mb-1">
                   4-Digit Security PIN
                 </label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Lock className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
                   <input
                     type="password"
                     maxLength={6}
                     value={pin}
                     onChange={(e) => setPin(e.target.value)}
-                    placeholder="••••"
-                    className="w-full pl-10 pr-3 py-2.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl font-semibold text-[#17231E] focus:bg-white focus:outline-hidden focus:border-[#0AB77F]"
-                    required
+                    placeholder="Enter 4-digit PIN"
+                    className="w-full pl-9 pr-4 py-2.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]"
                   />
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3 rounded-xl bg-[#0AB77F] hover:bg-[#07885E] text-white font-black text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
+                className="w-full py-3 bg-[#0AB77F] hover:bg-[#07885E] active:scale-[0.98] text-white rounded-xl text-xs font-black shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
               >
-                <span>Enter {USER_ROLES[selectedRole].title.split('/')[0]} Workspace</span>
+                <span>Sign In to {USER_ROLES[selectedRole].title.split('/')[0]}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </form>
           ) : (
-            <form onSubmit={handleRegister} className="space-y-3 text-xs">
+            <form onSubmit={handleRegister} className="space-y-3.5">
               <div>
-                <label className="block font-bold text-[#17231E] mb-1">Full Legal Name</label>
+                <label className="block text-xs font-extrabold text-[#17231E] mb-1">
+                  Full Legal Name *
+                </label>
                 <input
                   type="text"
+                  required
                   value={regName}
                   onChange={(e) => setRegName(e.target.value)}
-                  placeholder="e.g. Ronald Mugerwa"
-                  className="w-full px-3 py-2 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl font-semibold text-[#17231E] focus:bg-white focus:outline-hidden focus:border-[#0AB77F]"
-                  required
+                  placeholder="e.g. Dr. Michael Ssempa"
+                  className="w-full px-3.5 py-2.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]"
                 />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-bold text-[#17231E] mb-1">Phone Number</label>
-                  <input
-                    type="text"
-                    value={regPhone}
-                    onChange={(e) => setRegPhone(e.target.value)}
-                    placeholder="0772 000 111"
-                    className="w-full px-3 py-2 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl font-semibold text-[#17231E] focus:bg-white focus:outline-hidden focus:border-[#0AB77F]"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-[#17231E] mb-1">Estate / Org Name</label>
-                  <input
-                    type="text"
-                    value={regOrg}
-                    onChange={(e) => setRegOrg(e.target.value)}
-                    placeholder="Mugerwa Properties"
-                    className="w-full px-3 py-2 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl font-semibold text-[#17231E] focus:bg-white focus:outline-hidden focus:border-[#0AB77F]"
-                  />
-                </div>
               </div>
 
               <div>
-                <label className="block font-bold text-[#17231E] mb-1">Security PIN</label>
+                <label className="block text-xs font-extrabold text-[#17231E] mb-1">
+                  Uganda Phone Number (MoMo Enabled) *
+                </label>
                 <input
-                  type="password"
-                  maxLength={6}
-                  value={regPin}
-                  onChange={(e) => setRegPin(e.target.value)}
-                  placeholder="1234"
-                  className="w-full px-3 py-2 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl font-semibold text-[#17231E] focus:bg-white focus:outline-hidden focus:border-[#0AB77F]"
+                  type="text"
                   required
+                  value={regPhone}
+                  onChange={(e) => setRegPhone(e.target.value)}
+                  placeholder="e.g. 0772 123 456"
+                  className="w-full px-3.5 py-2.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]"
                 />
               </div>
+
+              <div>
+                <label className="block text-xs font-extrabold text-[#17231E] mb-1">
+                  Email Address (Optional)
+                </label>
+                <input
+                  type="email"
+                  value={regEmail}
+                  onChange={(e) => setRegEmail(e.target.value)}
+                  placeholder="e.g. owner@gmail.com"
+                  className="w-full px-3.5 py-2.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]"
+                />
+              </div>
+
+              {selectedRole === 'LANDLORD' && (
+                <div>
+                  <label className="block text-xs font-extrabold text-[#17231E] mb-1">
+                    First Property / Estate Name (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={regProperty}
+                    onChange={(e) => setRegProperty(e.target.value)}
+                    placeholder="e.g. Kampala Heights Apartments"
+                    className="w-full px-3.5 py-2.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]"
+                  />
+                </div>
+              )}
 
               <button
                 type="submit"
-                className="w-full py-3 rounded-xl bg-[#0AB77F] hover:bg-[#07885E] text-white font-black text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
+                className="w-full py-3 bg-[#0AB77F] hover:bg-[#07885E] active:scale-[0.98] text-white rounded-xl text-xs font-black shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
               >
-                <span>Register & Open Ledger</span>
+                <span>Start 2-Month Free Trial</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </form>
           )}
-
-          {/* Quick Demo Instant Roles */}
-          <div className="pt-2 border-t border-[#DFE8E3] text-center space-y-2">
-            <div className="text-[10px] font-bold text-[#65766F] uppercase tracking-wider">
-              ⚡ Quick Demo 1-Click Launchers
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                type="button"
-                onClick={() => quickLoginAs('LANDLORD')}
-                className="p-1.5 rounded-lg bg-[#F5F8F6] hover:bg-[#E2F8EF] border border-[#DFE8E3] text-[11px] font-bold text-[#17231E] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <span>👑</span> Owner (Landlord)
-              </button>
-              <button
-                type="button"
-                onClick={() => quickLoginAs('MANAGER')}
-                className="p-1.5 rounded-lg bg-[#F5F8F6] hover:bg-[#E2F8EF] border border-[#DFE8E3] text-[11px] font-bold text-[#17231E] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <span>👨🏾‍💼</span> Caretaker Hub
-              </button>
-              <button
-                type="button"
-                onClick={() => quickLoginAs('TENANT')}
-                className="p-1.5 rounded-lg bg-[#F5F8F6] hover:bg-[#E2F8EF] border border-[#DFE8E3] text-[11px] font-bold text-[#17231E] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <span>👤</span> Tenant Portal
-              </button>
-              <button
-                type="button"
-                onClick={() => quickLoginAs('SERVICE_PROVIDER')}
-                className="p-1.5 rounded-lg bg-[#F5F8F6] hover:bg-[#E2F8EF] border border-[#DFE8E3] text-[11px] font-bold text-[#17231E] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <span>🛠️</span> Contractor Jobs
-              </button>
-            </div>
-          </div>
         </div>
 
-        {/* Footer info */}
-        <div className="text-center text-xs text-[#65766F] font-semibold space-y-1">
-          <p>Bank-Grade Security • Mobile Money (MTN/Airtel) Verified</p>
-          <p className="text-[10px] text-[#65766F]/80">MARS Cashflow 2.0 • Kampala, Uganda</p>
+        {/* Security badge */}
+        <div className="text-center text-[11px] text-gray-400 flex items-center justify-center gap-1.5">
+          <ShieldCheck className="w-4 h-4 text-[#0AB77F]" />
+          <span>Secured with Uganda Real Estate Ledger Integrity</span>
         </div>
       </div>
     </div>

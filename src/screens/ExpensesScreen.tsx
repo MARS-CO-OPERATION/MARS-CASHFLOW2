@@ -3,6 +3,7 @@ import { useMars } from '../context/MarsContext';
 import { formatMoney, formatUgx } from '../utils/formatters';
 import { ExpenseEntity } from '../types';
 import { AddExpenseModal } from '../components/AddExpenseModal';
+import { EmptyState } from '../components/EmptyState';
 import {
   TrendingDown,
   Plus,
@@ -11,7 +12,8 @@ import {
   FileSpreadsheet,
   X,
   CheckCircle2,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Receipt
 } from 'lucide-react';
 
 interface ExpensesScreenProps {
@@ -19,7 +21,7 @@ interface ExpensesScreenProps {
 }
 
 export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({ onNavigate }) => {
-  const { expenses, properties } = useMars();
+  const { expenses, properties, t } = useMars();
 
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedProperty, setSelectedProperty] = useState<string>('All');
@@ -33,6 +35,7 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({ onNavigate }) =>
     'Caretaker Wage',
     'Repairs',
     'Security',
+    'Cleaning',
     'General',
   ];
 
@@ -73,6 +76,9 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({ onNavigate }) =>
         </div>
       )}
 
+      {/* Add Expense Modal */}
+      <AddExpenseModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} />
+
       {/* Screen Title & Top Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -93,14 +99,14 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({ onNavigate }) =>
             className="px-3.5 py-2 bg-white hover:bg-gray-50 border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Camera className="w-3.5 h-3.5 text-[#0AB77F]" />
-            Scan Receipt OCR
+            <span>Scan Receipt OCR</span>
           </button>
           <button
             onClick={() => setShowAddModal(true)}
             className="px-4 py-2 bg-[#D93838] hover:bg-red-700 text-white rounded-xl text-xs font-extrabold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            Record Expense
+            <span>Record Expense</span>
           </button>
         </div>
       </div>
@@ -129,7 +135,6 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({ onNavigate }) =>
 
       {/* Filters Strip */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-3xl border border-[#DFE8E3]">
-        {/* Category chips */}
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full">
           {categories.map((cat) => (
             <button
@@ -138,7 +143,7 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({ onNavigate }) =>
               className={`px-3 py-1 text-xs font-bold rounded-xl transition-colors whitespace-nowrap cursor-pointer ${
                 selectedCategory === cat
                   ? 'bg-[#101915] text-white shadow-xs'
-                  : 'bg-[#F5F8F6] text-[#65766F] hover:text-[#17231E]'
+                  : 'text-[#65766F] hover:bg-gray-100 hover:text-[#17231E]'
               }`}
             >
               {cat}
@@ -146,74 +151,81 @@ export const ExpensesScreen: React.FC<ExpensesScreenProps> = ({ onNavigate }) =>
           ))}
         </div>
 
-        {/* Property dropdown */}
-        <select
-          value={selectedProperty}
-          onChange={(e) => setSelectedProperty(e.target.value)}
-          className="px-3 py-1.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]"
-        >
-          <option value="All">All Estates</option>
-          {properties.map((p) => (
-            <option key={p.id} value={p.name}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Expenses Table / Cards */}
-      <div className="bg-white rounded-3xl p-6 border border-[#DFE8E3] shadow-sm space-y-4">
-        {filteredExpenses.length === 0 ? (
-          <div className="text-center py-10 text-[#65766F] text-xs">
-            No expenses found matching the selected category and estate.
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-100">
-            {filteredExpenses.map((exp) => (
-              <div
-                key={exp.id}
-                className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-red-50 flex items-center justify-center text-lg shrink-0">
-                    🧾
-                  </div>
-                  <div>
-                    <div className="font-extrabold text-xs text-[#17231E]">{exp.description}</div>
-                    <div className="text-[11px] text-[#65766F]">
-                      {exp.propertyName} • {exp.date}
-                    </div>
-                    <div className="mt-1">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-[#17231E]">
-                        {exp.category}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between sm:justify-end gap-3">
-                  {exp.receiptPhotoUri && (
-                    <button
-                      onClick={() => setPreviewPhoto(exp.receiptPhotoUri!)}
-                      className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-[#17231E] rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer"
-                    >
-                      <ImageIcon className="w-3.5 h-3.5 text-[#0AB77F]" />
-                      <span>View Receipt</span>
-                    </button>
-                  )}
-                  <div className="text-right">
-                    <span className="font-black text-sm text-[#D93838]">
-                      -{formatUgx(exp.amount)}
-                    </span>
-                  </div>
-                </div>
-              </div>
+        {properties.length > 0 && (
+          <select
+            value={selectedProperty}
+            onChange={(e) => setSelectedProperty(e.target.value)}
+            className="px-3 py-1.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] focus:outline-hidden"
+          >
+            <option value="All">All Properties</option>
+            {properties.map((p) => (
+              <option key={p.id} value={p.name}>
+                {p.name}
+              </option>
             ))}
-          </div>
+          </select>
         )}
       </div>
 
-      <AddExpenseModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} />
+      {/* Expenses List or Empty State */}
+      {filteredExpenses.length === 0 ? (
+        <EmptyState
+          icon={Receipt}
+          title={t.noExpensesTitle}
+          description={t.noExpensesDesc}
+          actionLabel={t.recordExpense}
+          onAction={() => setShowAddModal(true)}
+          tips={[
+            'Keep your Net Operating Cashflow accurate by logging bills like Umeme tokens, NWSC water, garbage, and caretaker allowances.',
+            'Repair tickets completed through MARS Projects Uganda can be linked directly with 1 click.',
+          ]}
+        />
+      ) : (
+        <div className="space-y-3">
+          {filteredExpenses.map((exp: ExpenseEntity) => (
+            <div
+              key={exp.id}
+              className="bg-white rounded-3xl p-4 sm:p-5 border border-[#DFE8E3] hover:border-[#0AB77F]/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-red-50 text-[#D93838] flex items-center justify-center text-lg shrink-0">
+                  {exp.category === 'Utilities' ? '⚡' : exp.category === 'Maintenance' ? '🔧' : '📉'}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-xs text-[#17231E]">{exp.description}</span>
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#F5F8F6] text-[#65766F] border border-[#DFE8E3]">
+                      {exp.category}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-[#65766F] mt-0.5">
+                    {exp.propertyName} • Logged by: {exp.recordedBy || 'Management'} on {exp.date}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-100">
+                <div className="text-right">
+                  <div className="font-black text-sm text-[#D93838] sm:text-base">
+                    -{formatUgx(exp.amount)}
+                  </div>
+                  <div className="text-[10px] text-gray-400">Approved Voucher</div>
+                </div>
+
+                {exp.receiptPhotoUri && (
+                  <button
+                    onClick={() => setPreviewPhoto(exp.receiptPhotoUri || null)}
+                    className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors cursor-pointer"
+                    title="View Attached Photo Voucher"
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

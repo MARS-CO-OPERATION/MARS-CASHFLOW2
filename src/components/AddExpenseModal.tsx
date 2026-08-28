@@ -92,7 +92,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
         description,
         amount: numAmount,
         category,
-        receiptPhotoUri,
+        receiptPhotoUrl: receiptPhotoUri || undefined,
       });
       setIsSubmitting(false);
       onClose();

@@ -298,9 +298,12 @@ export const PropertyMapScreen: React.FC<PropertyMapScreenProps> = ({ onNavigate
                 >
                   {/* Property Markers */}
                   {(filterLayer === 'ALL' || filterLayer === 'PROPERTIES') &&
-                    properties.map((prop) => {
-                      const coords = PROPERTY_COORDINATES[prop.id];
-                      if (!coords) return null;
+                    properties.map((prop, idx) => {
+                      const coords = PROPERTY_COORDINATES[prop.id] || {
+                        lat: 0.3476 + (idx * 0.015),
+                        lng: 32.6105 + (idx * 0.015),
+                        address: prop.location || 'Kampala, Uganda',
+                      };
                       const isSelected = prop.id === selectedPropertyId;
 
                       return (
