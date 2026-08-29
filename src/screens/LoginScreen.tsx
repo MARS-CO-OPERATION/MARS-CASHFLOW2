@@ -9,8 +9,9 @@ import {
   Lock,
   ArrowRight,
   UserCheck,
-  CheckCircle2,
-  PhoneCall
+  PhoneCall,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 interface LoginScreenProps {
@@ -21,7 +22,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
   const { login, register, currentUser, language, setLanguage, t } = useMars();
 
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
-  const [selectedRole, setSelectedRole] = useState<UserRoleKey>('LANDLORD');
+  const selectedRole: UserRoleKey = 'LANDLORD';
 
   // Login form
   const [identifier, setIdentifier] = useState('');
@@ -34,6 +35,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
   const [regEmail, setRegEmail] = useState('');
   const [regProperty, setRegProperty] = useState('');
   const [regPin, setRegPin] = useState('');
+  const [regPinConfirmation, setRegPinConfirmation] = useState('');
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showRegConfirmation, setShowRegConfirmation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -63,6 +67,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
 
     if (!regEmail.includes('@') || regPin.length < 8) {
       setLoginError('Email and a password of at least 8 characters are required.');
+      return;
+    }
+    if (regPin !== regPinConfirmation) {
+      setLoginError('Passwords do not match.');
       return;
     }
     setIsSubmitting(true);
@@ -148,33 +156,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
               {loginError}
             </div>
           )}
-
-          {/* Role Picker for Context */}
-          <div className="space-y-1.5">
-            <label className="block text-xs font-extrabold text-[#17231E]">
-              Account Working Authority
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {(['LANDLORD', 'MANAGER', 'TENANT', 'SERVICE_PROVIDER'] as UserRoleKey[]).map((roleKey) => {
-                const isSelected = selectedRole === roleKey;
-                return (
-                  <button
-                    key={roleKey}
-                    type="button"
-                    onClick={() => setSelectedRole(roleKey)}
-                    className={`py-2 px-3 rounded-xl border text-xs font-extrabold transition-all cursor-pointer text-left flex items-center justify-between ${
-                      isSelected
-                        ? 'bg-[#E2F8EF] border-[#0AB77F] text-[#0AB77F]'
-                        : 'bg-[#F5F8F6] border-[#DFE8E3] text-[#65766F] hover:bg-gray-100'
-                    }`}
-                  >
-                    <span>{USER_ROLES[roleKey].title.split('/')[0]}</span>
-                    {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-[#0AB77F]" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
 
           {activeTab === 'login' ? (
             <form onSubmit={handleLogin} className="space-y-4">
@@ -278,6 +259,21 @@ Email Address *
                   />
                 </div>
               )}
+
+              <div>
+                <label className="block text-xs font-extrabold text-[#17231E] mb-1">Password *</label>
+                <div className="relative">
+                  <input type={showRegPassword ? 'text' : 'password'} required minLength={8} autoComplete="new-password" value={regPin} onChange={(e) => setRegPin(e.target.value)} placeholder="Create a secure password" className="w-full px-3.5 py-2.5 pr-10 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]" />
+                  <button type="button" aria-label={showRegPassword ? 'Hide password' : 'Show password'} onClick={() => setShowRegPassword((visible) => !visible)} className="absolute right-3 top-2.5 text-gray-400 cursor-pointer">{showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-extrabold text-[#17231E] mb-1">Confirm Password *</label>
+                <div className="relative">
+                  <input type={showRegConfirmation ? 'text' : 'password'} required minLength={8} autoComplete="new-password" value={regPinConfirmation} onChange={(e) => setRegPinConfirmation(e.target.value)} placeholder="Re-enter your password" className="w-full px-3.5 py-2.5 pr-10 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]" />
+                  <button type="button" aria-label={showRegConfirmation ? 'Hide confirmation' : 'Show confirmation'} onClick={() => setShowRegConfirmation((visible) => !visible)} className="absolute right-3 top-2.5 text-gray-400 cursor-pointer">{showRegConfirmation ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
+                </div>
+              </div>
 
               <button
                 type="submit"

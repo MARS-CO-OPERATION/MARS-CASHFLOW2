@@ -769,16 +769,6 @@ export const WorkspaceHubScreen: React.FC = () => {
                     >
                       + Quarterly Inspection Log
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNewFileName('Entebbe_Heights_Security_Gate_Contract.txt');
-                        setNewFileContent('Vendor Agreement: Automated gate maintenance service contract with Securitas Uganda.');
-                      }}
-                      className="text-left text-xs p-2 rounded-lg bg-[#F5F8F6] text-[#0D3B2E] hover:bg-[#E8F1EC] transition font-medium"
-                    >
-                      + Service Provider Contract
-                    </button>
                   </div>
                 </div>
               </div>
@@ -1042,7 +1032,6 @@ export const WorkspaceHubScreen: React.FC = () => {
                     >
                       <option value="Tenant">Tenant</option>
                       <option value="Caretaker / Property Manager">Caretaker / Property Manager</option>
-                      <option value="Service Contractor (Plumber/Electrician)">Service Contractor</option>
                       <option value="Property Owner">Property Owner</option>
                     </select>
                   </div>

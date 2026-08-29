@@ -5,6 +5,7 @@ import {
   signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signOut,
   onAuthStateChanged,
@@ -113,6 +114,8 @@ export const emailSignUp = async (email: string, password: string): Promise<User
   const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
   return result.user;
 };
+
+export const sendVerificationEmail = (user: User) => sendEmailVerification(user);
 
 export const requestPasswordReset = (email: string) =>
   sendPasswordResetEmail(auth, email.trim());

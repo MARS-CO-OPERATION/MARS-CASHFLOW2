@@ -63,10 +63,6 @@ export const FaqScreen: React.FC<FaqScreenProps> = ({ onNavigate }) => {
           q: 'Can caretakers log payments without an active internet connection?',
           a: 'Yes! MARS utilizes an offline-first architecture with local database storage. Collections recorded on-site queue locally and synchronize to the cloud as soon as a data connection is detected.',
         },
-        {
-          q: 'How are contractor work orders dispatched?',
-          a: 'Caretakers and landlords can log repair requests (plumbing, electricals, carpentry) and assign them directly to verified artisans in the Service Provider Directory.',
-        },
       ],
     },
     {

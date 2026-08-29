@@ -6,8 +6,8 @@ import {
   TenantEntity,
   PaymentEntity,
   ExpenseEntity,
-  MaintenanceEntity,
   ServiceProviderEntity,
+  MaintenanceEntity,
   AuditEventEntity,
   NotificationEntity,
   RecurringTask,
@@ -33,7 +33,7 @@ import {
   clearMarsStorage,
 } from '../services/store';
 import { Language, translations, Translations } from '../utils/i18n';
-import { auth, onAuthStateChanged, emailSignIn, emailSignUp, logout as firebaseLogout } from '../services/firebase';
+import { auth, onAuthStateChanged, emailSignIn, emailSignUp, sendVerificationEmail, logout as firebaseLogout } from '../services/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
@@ -195,9 +195,9 @@ const MarsContext = createContext<MarsContextType | undefined>(undefined);
 
 export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Current logged in user loaded from the authenticated Firebase profile.
-  const [currentUser, setCurrentUser] = useState<UserEntity | null>(() =>
-    loadFromStorage<UserEntity | null>(STORAGE_KEYS.USER, null)
-  );
+  // Firebase Authentication and the Firestore profile are authoritative. Offline storage
+  // may cache UI data, but it must never restore identity or permissions.
+  const [currentUser, setCurrentUser] = useState<UserEntity | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: import('firebase/auth').User | null) => {
@@ -370,6 +370,7 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!data.email.includes('@') || data.password.length < 8) return false;
     try {
       const firebaseUser = await emailSignUp(data.email, data.password);
+      await sendVerificationEmail(firebaseUser);
       const now = Date.now();
       const roleAssignment: RoleAssignment = { id: `role-primary-${firebaseUser.uid}`, roleKey: data.role, assignedAt: now, permissions: ['ALL'] };
       const newUser: UserEntity = { id: firebaseUser.uid, phone: data.phone, email: data.email, displayName: data.displayName, primaryRole: data.role, accountStatus: 'ACTIVE', authProvider: 'PASSWORD', assignedRoles: [roleAssignment], activeContextId: roleAssignment.id, createdAt: now, language };

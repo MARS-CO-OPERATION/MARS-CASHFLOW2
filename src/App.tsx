@@ -11,7 +11,6 @@ import { CaretakerHubScreen } from './screens/CaretakerHubScreen';
 import { TenantPortalScreen } from './screens/TenantPortalScreen';
 import { ExpensesScreen } from './screens/ExpensesScreen';
 import { MaintenanceScreen } from './screens/MaintenanceScreen';
-import { ServiceProviderScreen } from './screens/ServiceProviderScreen';
 import { IncomeExpenseChartScreen } from './screens/IncomeExpenseChartScreen';
 import { TimelineScreen } from './screens/TimelineScreen';
 import { TenantPaymentStatusScreen } from './screens/TenantPaymentStatusScreen';
@@ -81,8 +80,6 @@ const MainAppContent: React.FC = () => {
         return <ExpensesScreen onNavigate={handleNavigate} />;
       case 'maintenance':
         return <MaintenanceScreen onNavigate={handleNavigate} />;
-      case 'service_providers':
-        return <ServiceProviderScreen onNavigate={handleNavigate} />;
       case 'income_expense_chart':
         return <IncomeExpenseChartScreen onNavigate={handleNavigate} />;
       case 'timeline':

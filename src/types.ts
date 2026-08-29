@@ -1,4 +1,4 @@
-export type UserRoleKey = 'LANDLORD' | 'MANAGER' | 'TENANT' | 'SERVICE_PROVIDER';
+export type UserRoleKey = 'LANDLORD' | 'MANAGER' | 'TENANT';
 
 export interface UserRoleInfo {
   key: UserRoleKey;
@@ -30,13 +30,6 @@ export const USER_ROLES: Record<UserRoleKey, UserRoleInfo> = {
     subtitle: 'Own rent balance, payment history, receipts & maintenance tickets',
     icon: '👤',
     defaultRoute: 'tenant',
-  },
-  SERVICE_PROVIDER: {
-    key: 'SERVICE_PROVIDER',
-    title: 'Service Provider / Contractor',
-    subtitle: 'Dispatched repair jobs, work order status & verified service history',
-    icon: '🛠️',
-    defaultRoute: 'service_providers',
   },
 };
 
