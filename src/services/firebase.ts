@@ -3,6 +3,9 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut,
   onAuthStateChanged,
   User,
@@ -101,7 +104,23 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
   }
 };
 
-export const googleLogout = async () => {
+export const emailSignIn = async (email: string, password: string): Promise<User> => {
+  const result = await signInWithEmailAndPassword(auth, email.trim(), password);
+  return result.user;
+};
+
+export const emailSignUp = async (email: string, password: string): Promise<User> => {
+  const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
+  return result.user;
+};
+
+export const requestPasswordReset = (email: string) =>
+  sendPasswordResetEmail(auth, email.trim());
+
+export const logout = async () => {
   cachedAccessToken = null;
   await signOut(auth);
 };
+
+export const googleLogout = logout;
+export { onAuthStateChanged };

@@ -54,7 +54,7 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
   const [mgrName, setMgrName] = useState('');
   const [mgrPhone, setMgrPhone] = useState('');
   const [mgrEmail, setMgrEmail] = useState('');
-  const [mgrPin, setMgrPin] = useState('1234');
+  const [mgrPin, setMgrPin] = useState('');
   const [mgrPropertyIds, setMgrPropertyIds] = useState<string[]>([]);
   const [mgrCanPayments, setMgrCanPayments] = useState(true);
   const [mgrCanExpenses, setMgrCanExpenses] = useState(true);
@@ -95,8 +95,8 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
 
   const handleCreateManager = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!mgrName || !mgrPhone) {
-      setFeedback({ type: 'error', text: 'Please fill in manager name and phone number.' });
+    if (!mgrName || !mgrPhone || !mgrPin || mgrPin.length < 6 || mgrPropertyIds.length === 0) {
+      setFeedback({ type: 'error', text: 'Enter manager details, a PIN of at least 6 characters, and select at least one property.' });
       return;
     }
 
@@ -104,7 +104,7 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
       name: mgrName,
       phone: mgrPhone,
       email: mgrEmail,
-      pin: mgrPin || '1234',
+      pin: mgrPin,
       assignedPropertyIds: mgrPropertyIds.length > 0 ? mgrPropertyIds : properties.map((p) => p.id),
       status: 'ACTIVE',
       permissions: {

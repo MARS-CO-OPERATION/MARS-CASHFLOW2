@@ -34,41 +34,53 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
   const [regPhone, setRegPhone] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regProperty, setRegProperty] = useState('');
-  const [regPin, setRegPin] = useState('1234');
+  const [regPin, setRegPin] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
-    if (!identifier) {
-      setLoginError('Please enter your phone number or email address.');
+    if (!identifier.includes('@') || pin.length < 8) {
+      setLoginError('Enter a valid email address and password of at least 8 characters.');
       return;
     }
 
-    const success = login(identifier, pin || '1234', selectedRole);
+    setIsSubmitting(true);
+    const success = await login(identifier, pin);
+    setIsSubmitting(false);
     if (success) {
       onNavigate(USER_ROLES[selectedRole].defaultRoute);
     } else {
-      setLoginError('Invalid credentials. Please verify your phone or PIN.');
+      setLoginError('Invalid email or password.');
     }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!regName || !regPhone) {
       setLoginError('Please provide your legal name and Uganda phone number.');
       return;
     }
 
-    const success = register({
+    if (!regEmail.includes('@') || regPin.length < 8) {
+      setLoginError('Email and a password of at least 8 characters are required.');
+      return;
+    }
+    setIsSubmitting(true);
+    const success = await register({
       displayName: regName,
       phone: regPhone,
-      email: regEmail || `${regPhone.replace(/[^0-9]/g, '')}@marscashflow.ug`,
+      email: regEmail,
+      password: regPin,
       role: selectedRole,
       propertyName: regProperty,
     });
 
+    setIsSubmitting(false);
     if (success) {
       onNavigate(USER_ROLES[selectedRole].defaultRoute);
+    } else {
+      setLoginError('Registration could not be completed. Check your details and try again.');
     }
   };
 
