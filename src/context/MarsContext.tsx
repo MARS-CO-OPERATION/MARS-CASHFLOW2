@@ -35,6 +35,9 @@ import {
   clearMarsStorage,
 } from '../services/store';
 import { Language, translations, Translations } from '../utils/i18n';
+import { auth, onAuthStateChanged, emailSignIn, emailSignUp, logout as firebaseLogout } from '../services/firebase';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../services/firebase';
 
 interface MarsContextType {
   currentUser: UserEntity | null;
@@ -79,8 +82,8 @@ interface MarsContextType {
   triggerSync: (callback?: (status: boolean, message: string) => void) => void;
   
   // Auth & Identity
-  login: (identifier: string, pin: string, role?: UserRoleKey) => boolean;
-  register: (data: { displayName: string; phone: string; email: string; role: UserRoleKey; propertyName?: string }) => boolean;
+  login: (identifier: string, password: string) => Promise<boolean>;
+  register: (data: { displayName: string; phone: string; email: string; password: string; role: UserRoleKey; propertyName?: string }) => Promise<boolean>;
   logout: () => void;
   switchWorkspace: (roleKey: UserRoleKey, workspaceTitle?: string) => void;
   switchContext: (contextId: string) => void;
@@ -203,55 +206,27 @@ const MarsContext = createContext<MarsContextType | undefined>(undefined);
 
 export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Current logged in user (Loads from local storage or sets up initial landlord account with 2-Month Free Trial)
-  const [currentUser, setCurrentUser] = useState<UserEntity | null>(() => {
-    const saved = loadFromStorage<UserEntity | null>(STORAGE_KEYS.USER, null);
-    if (saved) return saved;
+  const [currentUser, setCurrentUser] = useState<UserEntity | null>(() =>
+    loadFromStorage<UserEntity | null>(STORAGE_KEYS.USER, null)
+  );
 
-    const now = Date.now();
-    const trialDays = 60; // 2 Months Free Trial
-    const trialEnd = now + trialDays * 86400000;
-
-    const defaultLandlord: UserEntity = {
-      id: `usr-${now}`,
-      phone: '0772123456',
-      email: 'owner@marscashflow.ug',
-      displayName: 'Property Owner',
-      primaryRole: 'LANDLORD',
-      assignedRoles: [
-        {
-          id: `role-landlord-${now}`,
-          roleKey: 'LANDLORD',
-          assignedAt: now,
-          permissions: ['ALL'],
-        },
-        {
-          id: `role-manager-${now}`,
-          roleKey: 'MANAGER',
-          assignedAt: now,
-          permissions: ['LOG_PAYMENTS', 'LOG_EXPENSES', 'DISPATCH_REPAIRS'],
-        },
-        {
-          id: `role-tenant-${now}`,
-          roleKey: 'TENANT',
-          assignedAt: now,
-        },
-        {
-          id: `role-contractor-${now}`,
-          roleKey: 'SERVICE_PROVIDER',
-          assignedAt: now,
-        },
-      ],
-      activeContextId: `role-landlord-${now}`,
-      createdAt: now,
-      trialStartDate: now,
-      trialEndDate: trialEnd,
-      subscriptionStatus: 'TRIAL_ACTIVE',
-      subscriptionPlan: 'FREE_TRIAL',
-      language: 'en',
-    };
-    saveToStorage(STORAGE_KEYS.USER, defaultLandlord);
-    return defaultLandlord;
-  });
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: import('firebase/auth').User | null) => {
+      if (!firebaseUser) {
+        setCurrentUser(null);
+        localStorage.removeItem(STORAGE_KEYS.USER);
+        return;
+      }
+      const profile = await getDoc(doc(db, 'users', firebaseUser.uid));
+      if (!profile.exists()) {
+        setCurrentUser(null);
+        return;
+      }
+      const data = profile.data() as UserEntity;
+      setCurrentUser({ ...data, id: firebaseUser.uid, email: firebaseUser.email || data.email });
+    });
+    return unsubscribe;
+  }, []);
 
   // Language state
   const [language, setLanguageState] = useState<Language>(() => {
@@ -286,23 +261,23 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Core Collections (initialized with ZERO sample data by default)
   const [properties, setProperties] = useState<PropertyEntity[]>(() =>
-    loadFromStorage<PropertyEntity[]>(STORAGE_KEYS.PROPERTIES, INITIAL_PROPERTIES)
+    loadFromStorage<PropertyEntity[]>(STORAGE_KEYS.PROPERTIES, [])
   );
 
   const [tenants, setTenants] = useState<TenantEntity[]>(() =>
-    loadFromStorage<TenantEntity[]>(STORAGE_KEYS.TENANTS, INITIAL_TENANTS)
+    loadFromStorage<TenantEntity[]>(STORAGE_KEYS.TENANTS, [])
   );
 
   const [payments, setPayments] = useState<PaymentEntity[]>(() =>
-    loadFromStorage<PaymentEntity[]>(STORAGE_KEYS.PAYMENTS, INITIAL_PAYMENTS)
+    loadFromStorage<PaymentEntity[]>(STORAGE_KEYS.PAYMENTS, [])
   );
 
   const [expenses, setExpenses] = useState<ExpenseEntity[]>(() =>
-    loadFromStorage<ExpenseEntity[]>(STORAGE_KEYS.EXPENSES, INITIAL_EXPENSES)
+    loadFromStorage<ExpenseEntity[]>(STORAGE_KEYS.EXPENSES, [])
   );
 
   const [maintenance, setMaintenance] = useState<MaintenanceEntity[]>(() =>
-    loadFromStorage<MaintenanceEntity[]>(STORAGE_KEYS.MAINTENANCE, INITIAL_MAINTENANCE)
+    loadFromStorage<MaintenanceEntity[]>(STORAGE_KEYS.MAINTENANCE, [])
   );
 
   const [serviceProviders, setServiceProviders] = useState<ServiceProviderEntity[]>(() =>
@@ -322,8 +297,24 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   const [notifications, setNotifications] = useState<NotificationEntity[]>([]);
+
+  // Scope every client-visible collection by the authenticated user and assignment.
+  // Firestore rules remain the source of truth; this prevents accidental cross-property UI exposure.
+  const scopedPropertyIds = useMemo(() => {
+    if (!currentUser) return new Set<string>();
+    if (currentRole === 'LANDLORD') return new Set(properties.filter((property) => (property.ownerUserId || property.ownerId) === currentUser.id).map((property) => property.id));
+    if (currentRole === 'MANAGER') return new Set(currentUser.assignedRoles.filter((role) => role.roleKey === 'MANAGER' && role.propertyId).map((role) => role.propertyId as string));
+    if (activeContext?.propertyId) return new Set([activeContext.propertyId]);
+    return new Set<string>();
+  }, [activeContext?.propertyId, currentRole, currentUser, properties]);
+  const visibleProperties = useMemo(() => properties.filter((property) => scopedPropertyIds.has(property.id)), [properties, scopedPropertyIds]);
+  const visibleTenants = useMemo(() => tenants.filter((tenant) => currentRole === 'TENANT' ? tenant.userId === currentUser?.id : Boolean(tenant.propertyId && scopedPropertyIds.has(tenant.propertyId))), [currentRole, currentUser?.id, scopedPropertyIds, tenants]);
+  const visiblePayments = useMemo(() => payments.filter((payment) => Boolean(payment.propertyId && scopedPropertyIds.has(payment.propertyId))), [payments, scopedPropertyIds]);
+  const visibleExpenses = useMemo(() => expenses.filter((expense) => Boolean(expense.propertyId && scopedPropertyIds.has(expense.propertyId))), [expenses, scopedPropertyIds]);
+  const visibleMaintenance = useMemo(() => maintenance.filter((item) => Boolean(item.propertyId && scopedPropertyIds.has(item.propertyId))), [maintenance, scopedPropertyIds]);
+
   const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING' | 'SUCCESS' | 'ERROR'>('IDLE');
-  const [syncMessage, setSyncMessage] = useState<string | null>('Uganda Master Ledger Synced & Online');
+  const [syncMessage, setSyncMessage] = useState<string | null>('Local changes are pending cloud synchronization');
 
   // Persistence hooks
   useEffect(() => saveToStorage(STORAGE_KEYS.PROPERTIES, properties), [properties]);
@@ -414,85 +405,42 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const switchWorkspace = (roleKey: UserRoleKey, _title?: string) => {
     if (!currentUser) return;
+    // A workspace is granted by the authenticated profile, never created by the client.
     const targetRole = currentUser.assignedRoles.find((r) => r.roleKey === roleKey);
-    if (targetRole) {
-      switchContext(targetRole.id);
-    } else {
-      // Add role assignment if missing
-      const newRole: RoleAssignment = {
-        id: `role-${roleKey.toLowerCase()}-${Date.now()}`,
-        roleKey,
-        assignedAt: Date.now(),
-      };
-      const updatedUser: UserEntity = {
-        ...currentUser,
-        assignedRoles: [...currentUser.assignedRoles, newRole],
-        activeContextId: newRole.id,
-      };
-      setCurrentUser(updatedUser);
-      saveToStorage(STORAGE_KEYS.USER, updatedUser);
+    if (targetRole) switchContext(targetRole.id);
+  };
+
+  const login = async (identifier: string, password: string): Promise<boolean> => {
+    if (!identifier.includes('@') || password.length < 8) return false;
+    try {
+      await emailSignIn(identifier, password);
+      return true;
+    } catch {
+      return false;
     }
   };
 
-  const login = (identifier: string, _pin: string, role: UserRoleKey = 'LANDLORD'): boolean => {
-    const now = Date.now();
-    const newUser: UserEntity = {
-      id: `usr-${now}`,
-      phone: identifier.includes('@') ? '0772123456' : identifier,
-      email: identifier.includes('@') ? identifier : `${role.toLowerCase()}@marscashflow.ug`,
-      displayName: role === 'LANDLORD' ? 'Property Owner' : role === 'MANAGER' ? 'Estate Manager' : role === 'TENANT' ? 'Resident Tenant' : 'Field Technician',
-      primaryRole: role,
-      assignedRoles: [
-        { id: `role-primary-${now}`, roleKey: role, assignedAt: now, permissions: ['ALL'] },
-      ],
-      activeContextId: `role-primary-${now}`,
-      createdAt: now,
-      trialStartDate: now,
-      trialEndDate: now + 60 * 86400000,
-      subscriptionStatus: 'TRIAL_ACTIVE',
-      subscriptionPlan: 'FREE_TRIAL',
-      language: language,
-    };
-    setCurrentUser(newUser);
-    saveToStorage(STORAGE_KEYS.USER, newUser);
-    addAuditEvent('USER_LOGIN', 'AUTH', newUser.id, `User logged in with ${role} authority`);
-    return true;
-  };
-
-  const register = (data: { displayName: string; phone: string; email: string; role: UserRoleKey; propertyName?: string }): boolean => {
-    const now = Date.now();
-    const newUser: UserEntity = {
-      id: `usr-${now}`,
-      phone: data.phone,
-      email: data.email,
-      displayName: data.displayName,
-      primaryRole: data.role,
-      assignedRoles: [
-        { id: `role-primary-${now}`, roleKey: data.role, assignedAt: now, permissions: ['ALL'] },
-      ],
-      activeContextId: `role-primary-${now}`,
-      createdAt: now,
-      trialStartDate: now,
-      trialEndDate: now + 60 * 86400000,
-      subscriptionStatus: 'TRIAL_ACTIVE',
-      subscriptionPlan: 'FREE_TRIAL',
-      language: language,
-    };
-    setCurrentUser(newUser);
-    saveToStorage(STORAGE_KEYS.USER, newUser);
-
-    if (data.propertyName && (data.role === 'LANDLORD' || data.role === 'MANAGER')) {
-      addProperty({ name: data.propertyName, location: 'Kampala, Uganda', totalUnits: 1 });
+  const register = async (data: { displayName: string; phone: string; email: string; password: string; role: UserRoleKey; propertyName?: string }): Promise<boolean> => {
+    if (!data.email.includes('@') || data.password.length < 8) return false;
+    try {
+      const firebaseUser = await emailSignUp(data.email, data.password);
+      const now = Date.now();
+      const roleAssignment: RoleAssignment = { id: `role-primary-${firebaseUser.uid}`, roleKey: data.role, assignedAt: now, permissions: ['ALL'] };
+      const newUser: UserEntity = { id: firebaseUser.uid, phone: data.phone, email: data.email, displayName: data.displayName, primaryRole: data.role, accountStatus: 'ACTIVE', authProvider: 'PASSWORD', assignedRoles: [roleAssignment], activeContextId: roleAssignment.id, createdAt: now, trialStartDate: now, trialEndDate: now + 60 * 86400000, subscriptionStatus: 'TRIAL_ACTIVE', subscriptionPlan: 'FREE_TRIAL', language };
+      await setDoc(doc(db, 'users', firebaseUser.uid), { ...newUser, createdAt: serverTimestamp() });
+      setCurrentUser(newUser);
+      saveToStorage(STORAGE_KEYS.USER, newUser);
+      // Property creation happens after the authenticated profile is established, through the landlord workflow.
+      return true;
+    } catch {
+      return false;
     }
-
-    addAuditEvent('USER_REGISTERED', 'AUTH', newUser.id, `Registered new ${data.role} account with 2-Month Free Trial`);
-    return true;
   };
 
   const logout = () => {
+    void firebaseLogout();
     setCurrentUser(null);
     localStorage.removeItem(STORAGE_KEYS.USER);
-    addAuditEvent('USER_LOGOUT', 'AUTH', 'session', 'User logged out');
   };
 
   // Property & Tenant Actions
@@ -507,7 +455,10 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       monthlyRevenue: 0,
       propertyType: property.propertyType || 'Residential',
       createdAt: Date.now(),
+      ownerUserId: currentUser?.id,
       ownerId: currentUser?.id,
+      currency: 'UGX',
+      syncStatus: 'PENDING',
     };
     setProperties((prev) => [newProp, ...prev]);
     addAuditEvent('PROPERTY_ADDED', 'PROPERTY', id, `Added property "${property.name}" with ${property.totalUnits} units`);
@@ -600,7 +551,8 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       transactionReference: `UGX-${Date.now().toString().slice(-6)}`,
       notes: payment.notes || 'Verified rent collection',
       issuedByName: currentUser?.displayName || 'Caretaker Desk',
-      syncStatus: 'SYNCED',
+      paymentStatus: 'PENDING',
+      syncStatus: 'PENDING',
       createdAt: Date.now(),
     };
 
@@ -644,27 +596,10 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     unitName: string;
     notes?: string;
   }): Promise<{ success: boolean; paymentId?: string; receiptNumber?: string; message: string }> => {
-    // Simulate mobile money push prompt and network settlement delay
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
     const methodLabel = params.provider === 'MTN_MOMO' ? 'MTN Mobile Money' : 'Airtel Money';
-    const result = recordPayment({
-      tenantName: params.tenantName,
-      tenantPhone: params.phone,
-      amount: params.amount,
-      paymentMethod: methodLabel,
-      propertyName: params.propertyName,
-      unitName: params.unitName,
-      notes: params.notes || `Direct ${methodLabel} instant digital settlement (${params.phone})`,
-    });
-
-    const payment = payments.find((p) => p.id === result.paymentId);
-
     return {
-      success: true,
-      paymentId: result.paymentId,
-      receiptNumber: payment?.receiptNumber || 'MARS-RCT-DIRECT',
-      message: `Mobile Money payment of UGX ${params.amount.toLocaleString()} verified and settled. Official receipt generated.`,
+      success: false,
+      message: `${methodLabel} collection is pending provider configuration. No payment was recorded or marked as verified.`,
     };
   };
 
@@ -1032,7 +967,7 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setTimeout(() => {
       setSyncStatus('SUCCESS');
-      const msg = 'Offline cache synchronized with cloud Firestore.';
+      const msg = 'Sync queue processed locally. Firebase confirmation is required before records are marked synced.';
       setSyncMessage(msg);
       addAuditEvent('SYNC_EXECUTED', 'SYSTEM', 'sync-now', msg);
       if (callback) callback(true, msg);
@@ -1061,15 +996,15 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         activeContext,
         authorizedRoles,
         properties,
-        allProperties: properties,
-        tenants,
-        allTenants: tenants,
-        payments,
-        allPayments: payments,
-        expenses,
-        allExpenses: expenses,
-        maintenance,
-        allMaintenance: maintenance,
+        allProperties: visibleProperties,
+        tenants: visibleTenants,
+        allTenants: visibleTenants,
+        payments: visiblePayments,
+        allPayments: visiblePayments,
+        expenses: visibleExpenses,
+        allExpenses: visibleExpenses,
+        maintenance: visibleMaintenance,
+        allMaintenance: visibleMaintenance,
         serviceProviders,
         recurringTasks,
         auditTrail,

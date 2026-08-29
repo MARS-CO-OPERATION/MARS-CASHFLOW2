@@ -1,4 +1,4 @@
-export type UserRoleKey = 'LANDLORD' | 'MANAGER' | 'TENANT' | 'SERVICE_PROVIDER' | 'MULTIROLE';
+export type UserRoleKey = 'LANDLORD' | 'MANAGER' | 'TENANT' | 'SERVICE_PROVIDER';
 
 export interface UserRoleInfo {
   key: UserRoleKey;
@@ -37,13 +37,6 @@ export const USER_ROLES: Record<UserRoleKey, UserRoleInfo> = {
     subtitle: 'Dispatched repair jobs, work order status & verified service history',
     icon: '🛠️',
     defaultRoute: 'service_providers',
-  },
-  MULTIROLE: {
-    key: 'MULTIROLE',
-    title: 'Multi-Role Account',
-    subtitle: 'One MARS account with multiple authorized roles & workspaces',
-    icon: '🔀',
-    defaultRoute: 'multi_role_selection',
   },
 };
 
