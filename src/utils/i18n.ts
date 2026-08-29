@@ -3,17 +3,6 @@ export type Language = 'en' | 'lg';
 export interface Translations {
   appName: string;
   tagline: string;
-  trialBanner: string;
-  trialDaysLeft: string;
-  subscriptionRequired: string;
-  subscribeNow: string;
-  subscriptionPlans: string;
-  standardPlan: string;
-  proPlan: string;
-  commercialPlan: string;
-  freeTrial: string;
-  month3Notice: string;
-  viewPlans: string;
   
   // Navigation & Actions
   dashboard: string;
@@ -126,17 +115,6 @@ export const translations: Record<Language, Translations> = {
   en: {
     appName: 'MARS CASHFLOW',
     tagline: 'Uganda Real Estate & Cashflow Operating System',
-    trialBanner: '2-Month Free Trial Active',
-    trialDaysLeft: 'days remaining in your 2-Month Free Trial',
-    subscriptionRequired: 'Subscription Starting from Month 3',
-    subscribeNow: 'Activate Full Subscription',
-    subscriptionPlans: 'MARS Cashflow Uganda Plans',
-    standardPlan: 'Standard Estate (Up to 15 Units)',
-    proPlan: 'Portfolio Pro (Up to 50 Units)',
-    commercialPlan: 'Commercial & Multi-Estate (Unlimited)',
-    freeTrial: '2 Months Free',
-    month3Notice: 'Access MARS completely free for your first 2 months. Official subscription starts from month 3 via MTN / Airtel Mobile Money.',
-    viewPlans: 'View Subscription Plans',
     
     dashboard: 'Dashboard',
     landlordHub: 'Landlord Hub',
@@ -241,17 +219,6 @@ export const translations: Record<Language, Translations> = {
   lg: {
     appName: 'MARS CASHFLOW',
     tagline: 'Enteekateeka y\'Ebyamayumba n\'Ensaasaanya mu Uganda',
-    trialBanner: 'Emyezi 2 Egy\'Obwereere Gyitandise',
-    trialDaysLeft: 'ennaku ezisigaddeyo ku myezi 2 egy\'obwereere',
-    subscriptionRequired: 'Okusasula Kw\'Omwezi Kutandika mu Mwezi Ogw\'Okusatu',
-    subscribeNow: 'Sasula Omwezi Kati',
-    subscriptionPlans: 'Emitendera gy\'Okusasulira MARS mu Uganda',
-    standardPlan: 'Ennyumba Ezaabulijjo (Paka ku mayumba 15)',
-    proPlan: 'Ebyamayumba Ebingi (Paka ku mayumba 50)',
-    commercialPlan: 'Ebizimbe Ebinene (Awamu tewali kkomo)',
-    freeTrial: 'Emyezi 2 gya bwereere',
-    month3Notice: 'Kozesa MARS ku bwereere okumala emyezi 2 egisooka. Okusasula kw\'omwezi kutandika mu mwezi ogw\'okusatu ng\'okozesa MTN oba Airtel Mobile Money.',
-    viewPlans: 'Laba Emitendera gy\'Okusasula',
     
     dashboard: 'Wankaki / Ekibangirizi',
     landlordHub: 'Ekibangirizi ky\'Omutunzi / Nnyinimu',

@@ -40,19 +40,6 @@ export const USER_ROLES: Record<UserRoleKey, UserRoleInfo> = {
   },
 };
 
-export type SubscriptionStatus =
-  | 'TRIAL_ACTIVE'
-  | 'TRIAL_EXPIRING_SOON'
-  | 'SUBSCRIPTION_ACTIVE'
-  | 'SUBSCRIPTION_REQUIRED'
-  | 'GRACE_PERIOD';
-
-export type SubscriptionPlanKey =
-  | 'FREE_TRIAL'
-  | 'STANDARD_ESTATE'
-  | 'PORTFOLIO_PRO'
-  | 'COMMERCIAL_SCALE';
-
 export interface RoleAssignment {
   id: string;
   roleKey: UserRoleKey;
@@ -82,10 +69,6 @@ export interface UserEntity {
   organizationId?: string;
   assignedRoles: RoleAssignment[];
   activeContextId?: string;
-  trialStartDate?: number;
-  trialEndDate?: number;
-  subscriptionStatus?: SubscriptionStatus;
-  subscriptionPlan?: SubscriptionPlanKey;
   language?: 'en' | 'lg';
   createdAt: number;
   updatedAt?: number;

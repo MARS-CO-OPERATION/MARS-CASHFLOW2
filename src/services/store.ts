@@ -53,57 +53,6 @@ export const MARS_PROJECT_CATEGORIES = [
   'Other',
 ] as const;
 
-export const MARS_SUBSCRIPTION_PLANS = [
-  {
-    id: 'FREE_TRIAL',
-    name: '2-Month Free Trial',
-    nameLg: 'Emyezi 2 egy\'Obwereere',
-    priceUgx: 0,
-    period: 'First 60 Days Free',
-    periodLg: 'Ennaku 60 Ezisooka za Bwereere',
-    description: 'Full unrestricted access to all MARS Cashflow & MARS Projects features with zero charges.',
-    maxProperties: 'Unlimited',
-    maxUnits: 'Unlimited',
-    badge: 'FREE TRIAL',
-  },
-  {
-    id: 'STANDARD_ESTATE',
-    name: 'Standard Estate Plan',
-    nameLg: 'Enteekateeka ya Bwabulijjo',
-    priceUgx: 35000,
-    period: 'per month (from Month 3)',
-    periodLg: 'buli mwezi (okuva mu mwezi ogw\'3)',
-    description: 'Ideal for single residential rental estates and standalone apartments up to 15 units.',
-    maxProperties: '1 - 2 Estates',
-    maxUnits: 'Up to 15 Units',
-    badge: 'POPULAR',
-  },
-  {
-    id: 'PORTFOLIO_PRO',
-    name: 'Portfolio Pro Plan',
-    nameLg: 'Enteekateeka y\'Ebyamayumba Ebingi',
-    priceUgx: 75000,
-    period: 'per month (from Month 3)',
-    periodLg: 'buli mwezi (okuva mu mwezi ogw\'3)',
-    description: 'Advanced multi-property management, caretaker permissions, SMS notifications, and priority MARS Projects dispatch.',
-    maxProperties: 'Up to 8 Estates',
-    maxUnits: 'Up to 50 Units',
-    badge: 'RECOMMENDED',
-  },
-  {
-    id: 'COMMERCIAL_SCALE',
-    name: 'Commercial & Multi-Estate Plan',
-    nameLg: 'Enteekateeka y\'Ebizimbe Ebinene',
-    priceUgx: 150000,
-    period: 'per month (from Month 3)',
-    periodLg: 'buli mwezi (okuva mu mwezi ogw\'3)',
-    description: 'Unlimited properties, commercial plazas, student hostels, bank audit export, and dedicated account manager.',
-    maxProperties: 'Unlimited',
-    maxUnits: 'Unlimited',
-    badge: 'ENTERPRISE',
-  },
-];
-
 // Local Storage Keys
 export const STORAGE_KEYS = {
   USER: 'mars_user_session_v2',
