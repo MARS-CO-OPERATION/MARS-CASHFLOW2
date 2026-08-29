@@ -19,7 +19,6 @@ import { MonthlyBudgetPlannerScreen } from './screens/MonthlyBudgetPlannerScreen
 import { PdfExportScreen } from './screens/PdfExportScreen';
 import { DocumentScannerScreen } from './screens/DocumentScannerScreen';
 import { RecurringMaintenanceScreen } from './screens/RecurringMaintenanceScreen';
-import { MultiRoleSelectionScreen } from './screens/MultiRoleSelectionScreen';
 import { ReceiptDetailScreen } from './screens/ReceiptDetailScreen';
 import { FaqScreen } from './screens/FaqScreen';
 import { PropertyMapScreen } from './screens/PropertyMapScreen';
@@ -108,8 +107,6 @@ const MainAppContent: React.FC = () => {
         return <DocumentScannerScreen onNavigate={handleNavigate} />;
       case 'recurring_maintenance':
         return <RecurringMaintenanceScreen onNavigate={handleNavigate} />;
-      case 'multi_role_selection':
-        return <MultiRoleSelectionScreen onNavigate={handleNavigate} />;
       case 'receipt_detail':
         return (
           <ReceiptDetailScreen

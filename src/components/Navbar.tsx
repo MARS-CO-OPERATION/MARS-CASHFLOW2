@@ -230,17 +230,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, onNavigate }) => {
                       );
                     })}
                   </div>
-                  <div className="pt-2 px-2">
-                    <button
-                      onClick={() => {
-                        setShowWorkspaceMenu(false);
-                        onNavigate('multi_role_selection');
-                      }}
-                      className="w-full text-center py-1.5 text-xs text-[#0AB77F] font-bold hover:underline cursor-pointer"
-                    >
-                      Manage Workspaces →
-                    </button>
-                  </div>
                 </div>
               </>
             )}

@@ -228,8 +228,7 @@ service cloud.firestore {
       );
       allow list: if isSignedIn() && (
         resource.data.ownerUserId == request.auth.uid ||
-        (('managerIds' in resource.data) && request.auth.uid in resource.data.managerIds) ||
-        isLandlord()
+        (('managerIds' in resource.data) && request.auth.uid in resource.data.managerIds)
       );
       allow create: if isSignedIn() && isValidId(propertyId) &&
         (isLandlord() || isManager()) &&
@@ -252,10 +251,9 @@ service cloud.firestore {
         (('currentTenantId' in resource.data) && resource.data.currentTenantId == request.auth.uid)
       );
       allow list: if isSignedIn() && (
+        isAuthorizedForProperty(resource.data.propertyId) ||
         (('tenantUserId' in resource.data) && resource.data.tenantUserId == request.auth.uid) ||
-        (('currentTenantId' in resource.data) && resource.data.currentTenantId == request.auth.uid) ||
-        isLandlord() ||
-        isManager()
+        (('currentTenantId' in resource.data) && resource.data.currentTenantId == request.auth.uid)
       );
       allow create: if isSignedIn() && isValidId(unitId) &&
         isAuthorizedForProperty(incoming().propertyId) &&
@@ -305,8 +303,7 @@ service cloud.firestore {
       allow list: if isSignedIn() && (
         resource.data.tenantId == request.auth.uid ||
         resource.data.recordedByUserId == request.auth.uid ||
-        isLandlord() ||
-        isManager()
+        isAuthorizedForProperty(resource.data.propertyId)
       );
       allow create: if isSignedIn() && isValidId(paymentId) &&
         (
