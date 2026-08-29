@@ -30,11 +30,9 @@ const MainAppContent: React.FC = () => {
   const [currentRoute, setCurrentRoute] = useState<string>('dashboard');
   const [activePaymentId, setActivePaymentId] = useState<string | null>(null);
 
-  // If user signs out, route to login
+  // Never expose customer data screens without an authenticated Firebase profile.
   useEffect(() => {
-    if (!currentUser && currentRoute !== 'login') {
-      // Stay on current or switch to login
-    }
+    if (!currentUser && currentRoute !== 'login') setCurrentRoute('login');
   }, [currentUser, currentRoute]);
 
   const handleNavigate = (route: string) => {

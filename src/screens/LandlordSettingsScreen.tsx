@@ -95,8 +95,8 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
 
   const handleCreateManager = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!mgrName || !mgrPhone || !mgrPin || mgrPin.length < 6 || mgrPropertyIds.length === 0) {
-      setFeedback({ type: 'error', text: 'Enter manager details, a PIN of at least 6 characters, and select at least one property.' });
+    if (!mgrName || !mgrPhone || !mgrEmail || mgrPropertyIds.length === 0) {
+      setFeedback({ type: 'error', text: 'Enter the manager name, email, phone number, and at least one property.' });
       return;
     }
 
@@ -104,7 +104,8 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
       name: mgrName,
       phone: mgrPhone,
       email: mgrEmail,
-      pin: mgrPin,
+      // Manager authentication must be completed through Firebase Auth; never store a plaintext PIN.
+      pin: '',
       assignedPropertyIds: mgrPropertyIds.length > 0 ? mgrPropertyIds : properties.map((p) => p.id),
       status: 'ACTIVE',
       permissions: {

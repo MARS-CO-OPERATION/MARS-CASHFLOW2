@@ -42,12 +42,12 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
       ? selectedTenant.arrears > 0
         ? selectedTenant.arrears.toString()
         : selectedTenant.monthlyRent.toString()
-      : '1200000'
+      : ''
   );
 
   const [paymentMethod, setPaymentMethod] = useState<string>('Mobile Money (MTN)');
-  const [payerPhone, setPayerPhone] = useState<string>(initialTenant?.phone || selectedTenant?.phone || '0772123456');
-  const [notes, setNotes] = useState<string>('Rent Collection via MARS Web Ledger');
+  const [payerPhone, setPayerPhone] = useState<string>(initialTenant?.phone || selectedTenant?.phone || '');
+  const [notes, setNotes] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 

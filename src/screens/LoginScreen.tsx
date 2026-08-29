@@ -19,7 +19,7 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
-  const { login, register, language, setLanguage, t } = useMars();
+  const { login, register, currentUser, language, setLanguage, t } = useMars();
 
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
   const [selectedRole, setSelectedRole] = useState<UserRoleKey>('LANDLORD');
@@ -49,7 +49,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
     const success = await login(identifier, pin);
     setIsSubmitting(false);
     if (success) {
-      onNavigate(USER_ROLES[selectedRole].defaultRoute);
+      onNavigate(USER_ROLES[currentUser?.primaryRole || selectedRole].defaultRoute);
     } else {
       setLoginError('Invalid email or password.');
     }
@@ -78,7 +78,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
 
     setIsSubmitting(false);
     if (success) {
-      onNavigate(USER_ROLES[selectedRole].defaultRoute);
+      onNavigate(USER_ROLES[currentUser?.primaryRole || selectedRole].defaultRoute);
     } else {
       setLoginError('Registration could not be completed. Check your details and try again.');
     }
@@ -192,7 +192,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-xs font-extrabold text-[#17231E] mb-1">
-                  Phone Number or Email
+                  Email Address
                 </label>
                 <div className="relative">
                   <Smartphone className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
@@ -201,7 +201,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
                     required
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="e.g. 0772 123 456 or email"
+                    placeholder="you@example.com"
                     className="w-full pl-9 pr-4 py-2.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]"
                   />
                 </div>
@@ -209,16 +209,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
 
               <div>
                 <label className="block text-xs font-extrabold text-[#17231E] mb-1">
-                  4-Digit Security PIN
+Password
                 </label>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
                   <input
                     type="password"
-                    maxLength={6}
+                    autoComplete="current-password"
                     value={pin}
                     onChange={(e) => setPin(e.target.value)}
-                    placeholder="Enter 4-digit PIN"
+                    placeholder="Enter your password"
                     className="w-full pl-9 pr-4 py-2.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]"
                   />
                 </div>
@@ -264,10 +264,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
 
               <div>
                 <label className="block text-xs font-extrabold text-[#17231E] mb-1">
-                  Email Address (Optional)
+Email Address *
                 </label>
                 <input
                   type="email"
+                  required
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
                   placeholder="e.g. owner@gmail.com"

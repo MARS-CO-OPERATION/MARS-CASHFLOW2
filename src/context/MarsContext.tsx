@@ -314,7 +314,7 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const visibleMaintenance = useMemo(() => maintenance.filter((item) => Boolean(item.propertyId && scopedPropertyIds.has(item.propertyId))), [maintenance, scopedPropertyIds]);
 
   const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING' | 'SUCCESS' | 'ERROR'>('IDLE');
-  const [syncMessage, setSyncMessage] = useState<string | null>('Uganda Master Ledger Synced & Online');
+  const [syncMessage, setSyncMessage] = useState<string | null>('Local changes are pending cloud synchronization');
 
   // Persistence hooks
   useEffect(() => saveToStorage(STORAGE_KEYS.PROPERTIES, properties), [properties]);
@@ -405,24 +405,9 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const switchWorkspace = (roleKey: UserRoleKey, _title?: string) => {
     if (!currentUser) return;
+    // A workspace is granted by the authenticated profile, never created by the client.
     const targetRole = currentUser.assignedRoles.find((r) => r.roleKey === roleKey);
-    if (targetRole) {
-      switchContext(targetRole.id);
-    } else {
-      // Add role assignment if missing
-      const newRole: RoleAssignment = {
-        id: `role-${roleKey.toLowerCase()}-${Date.now()}`,
-        roleKey,
-        assignedAt: Date.now(),
-      };
-      const updatedUser: UserEntity = {
-        ...currentUser,
-        assignedRoles: [...currentUser.assignedRoles, newRole],
-        activeContextId: newRole.id,
-      };
-      setCurrentUser(updatedUser);
-      saveToStorage(STORAGE_KEYS.USER, updatedUser);
-    }
+    if (targetRole) switchContext(targetRole.id);
   };
 
   const login = async (identifier: string, password: string): Promise<boolean> => {
@@ -441,11 +426,11 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const firebaseUser = await emailSignUp(data.email, data.password);
       const now = Date.now();
       const roleAssignment: RoleAssignment = { id: `role-primary-${firebaseUser.uid}`, roleKey: data.role, assignedAt: now, permissions: ['ALL'] };
-      const newUser: UserEntity = { id: firebaseUser.uid, phone: data.phone, email: data.email, displayName: data.displayName, primaryRole: data.role, assignedRoles: [roleAssignment], activeContextId: roleAssignment.id, createdAt: now, trialStartDate: now, trialEndDate: now + 60 * 86400000, subscriptionStatus: 'TRIAL_ACTIVE', subscriptionPlan: 'FREE_TRIAL', language };
+      const newUser: UserEntity = { id: firebaseUser.uid, phone: data.phone, email: data.email, displayName: data.displayName, primaryRole: data.role, accountStatus: 'ACTIVE', authProvider: 'PASSWORD', assignedRoles: [roleAssignment], activeContextId: roleAssignment.id, createdAt: now, trialStartDate: now, trialEndDate: now + 60 * 86400000, subscriptionStatus: 'TRIAL_ACTIVE', subscriptionPlan: 'FREE_TRIAL', language };
       await setDoc(doc(db, 'users', firebaseUser.uid), { ...newUser, createdAt: serverTimestamp() });
       setCurrentUser(newUser);
       saveToStorage(STORAGE_KEYS.USER, newUser);
-      if (data.propertyName && data.role === 'LANDLORD') addProperty({ name: data.propertyName, location: 'Kampala, Uganda', totalUnits: 1 });
+      // Property creation happens after the authenticated profile is established, through the landlord workflow.
       return true;
     } catch {
       return false;
@@ -470,7 +455,10 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       monthlyRevenue: 0,
       propertyType: property.propertyType || 'Residential',
       createdAt: Date.now(),
+      ownerUserId: currentUser?.id,
       ownerId: currentUser?.id,
+      currency: 'UGX',
+      syncStatus: 'PENDING',
     };
     setProperties((prev) => [newProp, ...prev]);
     addAuditEvent('PROPERTY_ADDED', 'PROPERTY', id, `Added property "${property.name}" with ${property.totalUnits} units`);
@@ -563,7 +551,8 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       transactionReference: `UGX-${Date.now().toString().slice(-6)}`,
       notes: payment.notes || 'Verified rent collection',
       issuedByName: currentUser?.displayName || 'Caretaker Desk',
-      syncStatus: 'SYNCED',
+      paymentStatus: 'PENDING',
+      syncStatus: 'PENDING',
       createdAt: Date.now(),
     };
 
@@ -607,27 +596,10 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     unitName: string;
     notes?: string;
   }): Promise<{ success: boolean; paymentId?: string; receiptNumber?: string; message: string }> => {
-    // Simulate mobile money push prompt and network settlement delay
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
     const methodLabel = params.provider === 'MTN_MOMO' ? 'MTN Mobile Money' : 'Airtel Money';
-    const result = recordPayment({
-      tenantName: params.tenantName,
-      tenantPhone: params.phone,
-      amount: params.amount,
-      paymentMethod: methodLabel,
-      propertyName: params.propertyName,
-      unitName: params.unitName,
-      notes: params.notes || `Direct ${methodLabel} instant digital settlement (${params.phone})`,
-    });
-
-    const payment = payments.find((p) => p.id === result.paymentId);
-
     return {
-      success: true,
-      paymentId: result.paymentId,
-      receiptNumber: payment?.receiptNumber || 'MARS-RCT-DIRECT',
-      message: `Mobile Money payment of UGX ${params.amount.toLocaleString()} verified and settled. Official receipt generated.`,
+      success: false,
+      message: `${methodLabel} collection is pending provider configuration. No payment was recorded or marked as verified.`,
     };
   };
 
@@ -995,7 +967,7 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setTimeout(() => {
       setSyncStatus('SUCCESS');
-      const msg = 'Offline cache synchronized with cloud Firestore.';
+      const msg = 'Sync queue processed locally. Firebase confirmation is required before records are marked synced.';
       setSyncMessage(msg);
       addAuditEvent('SYNC_EXECUTED', 'SYSTEM', 'sync-now', msg);
       if (callback) callback(true, msg);
