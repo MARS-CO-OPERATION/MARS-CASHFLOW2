@@ -19,7 +19,7 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
-  const { login, register, currentUser, language, setLanguage, t } = useMars();
+  const { login, googleLogin, completeGoogleOnboarding, register, currentUser, language, setLanguage, t } = useMars();
 
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
   const selectedRole: UserRoleKey = 'LANDLORD';
@@ -39,6 +39,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [showRegConfirmation, setShowRegConfirmation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [googleSetup, setGoogleSetup] = useState(false);
+  const [googleRole, setGoogleRole] = useState<UserRoleKey>('LANDLORD');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +57,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
       onNavigate(USER_ROLES[currentUser?.primaryRole || selectedRole].defaultRoute);
     } else {
       setLoginError('Invalid email or password.');
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setLoginError(null);
+    setIsSubmitting(true);
+    const result = await googleLogin();
+    setIsSubmitting(false);
+    if (result === 'NEW') {
+      setGoogleSetup(true);
+      setLoginError(null);
+      setActiveTab('register');
+    } else if (result === 'EXISTING') {
+      onNavigate('dashboard');
+    } else {
+      setLoginError('Google sign-in was cancelled or could not be authenticated.');
     }
   };
 
@@ -154,6 +172,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
           {loginError && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-[#D93838] text-xs font-semibold">
               {loginError}
+            </div>
+          )}
+
+          <button type="button" onClick={handleGoogleSignIn} disabled={isSubmitting} className="w-full py-3 border border-[#DFE8E3] bg-white hover:bg-[#F5F8F6] text-[#17231E] rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
+            <span className="font-black text-base">G</span>
+            <span>Continue with Google</span>
+          </button>
+          <div className="flex items-center gap-3 text-[10px] font-bold text-[#8A9992]"><span className="h-px flex-1 bg-[#DFE8E3]" /><span>OR USE EMAIL</span><span className="h-px flex-1 bg-[#DFE8E3]" /></div>
+
+          {googleSetup && (
+            <div className="rounded-2xl border border-[#BFE9D8] bg-[#F0FBF6] p-4 space-y-3">
+              <div><p className="text-sm font-black text-[#17231E]">Complete your MARS account</p><p className="text-xs text-[#65766F] mt-1">Choose your role. Manager and Tenant access requires an assignment or invitation.</p></div>
+              <div className="grid grid-cols-3 gap-2">
+                {(['LANDLORD', 'MANAGER', 'TENANT'] as UserRoleKey[]).map((role) => <button key={role} type="button" onClick={() => role === 'LANDLORD' && setGoogleRole(role)} disabled={role !== 'LANDLORD'} className={`rounded-xl border px-2 py-2 text-[10px] font-black ${googleRole === role ? 'border-[#0AB77F] bg-[#DDF7EB] text-[#07885E]' : 'border-[#DFE8E3] text-[#65766F]'}`}>{role === 'LANDLORD' ? 'Landlord' : role === 'MANAGER' ? 'Manager' : 'Tenant'}</button>)}
+              </div>
+              <button type="button" disabled={isSubmitting} onClick={async () => { setIsSubmitting(true); const ok = await completeGoogleOnboarding(googleRole); setIsSubmitting(false); if (ok) onNavigate(USER_ROLES[googleRole].defaultRoute); else setLoginError('Account setup could not be completed.'); }} className="w-full rounded-xl bg-[#0AB77F] py-2.5 text-xs font-black text-white disabled:opacity-60">Continue with selected role</button>
             </div>
           )}
 

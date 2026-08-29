@@ -33,7 +33,7 @@ import {
   clearMarsStorage,
 } from '../services/store';
 import { Language, translations, Translations } from '../utils/i18n';
-import { auth, onAuthStateChanged, emailSignIn, emailSignUp, sendVerificationEmail, logout as firebaseLogout } from '../services/firebase';
+import { auth, onAuthStateChanged, emailSignIn, emailSignUp, googleAuthSignIn, sendVerificationEmail, logout as firebaseLogout } from '../services/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
@@ -72,6 +72,8 @@ interface MarsContextType {
   
   // Auth & Identity
   login: (identifier: string, password: string) => Promise<boolean>;
+  googleLogin: () => Promise<'EXISTING' | 'NEW' | 'ERROR'>;
+  completeGoogleOnboarding: (role: UserRoleKey, displayName?: string, phone?: string) => Promise<boolean>;
   register: (data: { displayName: string; phone: string; email: string; password: string; role: UserRoleKey; propertyName?: string }) => Promise<boolean>;
   logout: () => void;
   switchWorkspace: (roleKey: UserRoleKey, workspaceTitle?: string) => void;
@@ -198,6 +200,7 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Firebase Authentication and the Firestore profile are authoritative. Offline storage
   // may cache UI data, but it must never restore identity or permissions.
   const [currentUser, setCurrentUser] = useState<UserEntity | null>(null);
+  const [pendingGoogleUser, setPendingGoogleUser] = useState<import('firebase/auth').User | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: import('firebase/auth').User | null) => {
@@ -360,6 +363,34 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!identifier.includes('@') || password.length < 8) return false;
     try {
       await emailSignIn(identifier, password);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const googleLogin = async (): Promise<'EXISTING' | 'NEW' | 'ERROR'> => {
+    try {
+      const firebaseUser = await googleAuthSignIn();
+      const profile = await getDoc(doc(db, 'users', firebaseUser.uid));
+      if (profile.exists()) return 'EXISTING';
+      setPendingGoogleUser(firebaseUser);
+      return 'NEW';
+    } catch (error: any) {
+      if (error?.code === 'auth/popup-closed-by-user' || error?.code === 'auth/cancelled-popup-request') return 'ERROR';
+      return 'ERROR';
+    }
+  };
+
+  const completeGoogleOnboarding = async (role: UserRoleKey, displayName?: string, phone?: string): Promise<boolean> => {
+    if (!pendingGoogleUser || role !== 'LANDLORD') return false;
+    try {
+      const now = Date.now();
+      const assignment: RoleAssignment = { id: `role-primary-${pendingGoogleUser.uid}`, roleKey: role, assignedAt: now, permissions: role === 'LANDLORD' ? ['ALL'] : [] };
+      const profile: UserEntity = { id: pendingGoogleUser.uid, email: pendingGoogleUser.email || '', displayName: displayName || pendingGoogleUser.displayName || '', photoUrl: pendingGoogleUser.photoURL || undefined, phone: phone || '', primaryRole: role, accountStatus: role === 'LANDLORD' ? 'ACTIVE' : 'PENDING_VERIFICATION', authProvider: 'GOOGLE', assignedRoles: [assignment], activeContextId: assignment.id, createdAt: now, language };
+      await setDoc(doc(db, 'users', pendingGoogleUser.uid), { ...profile, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      setCurrentUser(profile);
+      setPendingGoogleUser(null);
       return true;
     } catch {
       return false;
@@ -963,8 +994,10 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         syncStatus,
         syncMessage,
         triggerSync,
-        login,
-        register,
+  login,
+  googleLogin,
+  completeGoogleOnboarding,
+  register,
         logout,
         switchWorkspace,
         switchContext,

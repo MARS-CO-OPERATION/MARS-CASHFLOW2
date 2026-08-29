@@ -26,8 +26,15 @@ export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// Configure Google Auth Provider with full Workspace scopes
+// Auth-only Google provider. Workspace scopes stay separate from authentication consent.
 export const googleAuthProvider = new GoogleAuthProvider();
+googleAuthProvider.setCustomParameters({ prompt: 'select_account' });
+export const googleWorkspaceProvider = new GoogleAuthProvider();
+
+export const googleAuthSignIn = async (): Promise<User> => {
+  const result = await signInWithPopup(auth, googleAuthProvider);
+  return result.user;
+};
 
 export const WORKSPACE_SCOPES = [
   'https://www.googleapis.com/auth/drive',
@@ -59,7 +66,7 @@ export const WORKSPACE_SCOPES = [
 ];
 
 WORKSPACE_SCOPES.forEach((scope) => {
-  googleAuthProvider.addScope(scope);
+  googleWorkspaceProvider.addScope(scope);
 });
 
 // Cache the access token in memory (never localStorage)
@@ -90,7 +97,7 @@ export const initAuth = (
 export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
   try {
     isSigningIn = true;
-    const result = await signInWithPopup(auth, googleAuthProvider);
+    const result = await signInWithPopup(auth, googleWorkspaceProvider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (!credential?.accessToken) {
       throw new Error('Failed to retrieve access token from Google Sign-In credential.');
