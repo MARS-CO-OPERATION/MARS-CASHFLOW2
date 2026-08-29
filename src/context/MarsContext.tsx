@@ -16,8 +16,6 @@ import {
   MaintenanceStatus,
   MaintenanceUrgency,
   MaintenanceQuotation,
-  SubscriptionStatus,
-  SubscriptionPlanKey,
 } from '../types';
 import {
   INITIAL_PROPERTIES,
@@ -61,15 +59,6 @@ interface MarsContextType {
   auditTrail: AuditEventEntity[];
   managers: ManagerEntity[];
   notifications: NotificationEntity[];
-  
-  // Subscription & 2-Month Free Trial
-  subscriptionStatus: SubscriptionStatus;
-  trialDaysRemaining: number;
-  trialStartDate: number;
-  trialEndDate: number;
-  isTrialActive: boolean;
-  isSubscriptionRequired: boolean;
-  activateSubscription: (planKey: SubscriptionPlanKey, provider: string, phone: string) => Promise<{ success: boolean; message: string }>;
   
   // Localization
   language: Language;
@@ -205,7 +194,7 @@ interface MarsContextType {
 const MarsContext = createContext<MarsContextType | undefined>(undefined);
 
 export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Current logged in user (Loads from local storage or sets up initial landlord account with 2-Month Free Trial)
+  // Current logged in user loaded from the authenticated Firebase profile.
   const [currentUser, setCurrentUser] = useState<UserEntity | null>(() =>
     loadFromStorage<UserEntity | null>(STORAGE_KEYS.USER, null)
   );
@@ -327,52 +316,9 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => saveToStorage(STORAGE_KEYS.AUDIT_TRAIL, auditTrail), [auditTrail]);
   useEffect(() => saveToStorage(STORAGE_KEYS.MANAGERS, managers), [managers]);
 
-  // Subscription calculation (Free for 2 Months, Subscription begins Month 3)
-  const now = Date.now();
-  const trialStartDate = currentUser?.trialStartDate || now;
-  const trialEndDate = currentUser?.trialEndDate || (now + 60 * 86400000);
-  const trialDaysRemaining = Math.max(0, Math.ceil((trialEndDate - now) / 86400000));
-  
-  const isTrialActive = trialDaysRemaining > 0 && currentUser?.subscriptionPlan === 'FREE_TRIAL';
-  const isSubscriptionRequired = trialDaysRemaining === 0 && currentUser?.subscriptionPlan === 'FREE_TRIAL';
-  
-  const subscriptionStatus: SubscriptionStatus = useMemo(() => {
-    if (!currentUser) return 'TRIAL_ACTIVE';
-    if (currentUser.subscriptionPlan !== 'FREE_TRIAL') return 'SUBSCRIPTION_ACTIVE';
-    if (trialDaysRemaining > 7) return 'TRIAL_ACTIVE';
-    if (trialDaysRemaining > 0) return 'TRIAL_EXPIRING_SOON';
-    return 'SUBSCRIPTION_REQUIRED';
-  }, [currentUser, trialDaysRemaining]);
-
-  const activateSubscription = async (
-    planKey: SubscriptionPlanKey,
-    provider: string,
-    phone: string
-  ): Promise<{ success: boolean; message: string }> => {
-    // Simulate backend payment verification
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    if (!currentUser) return { success: false, message: 'No active user session' };
-
-    const updatedUser: UserEntity = {
-      ...currentUser,
-      subscriptionPlan: planKey,
-      subscriptionStatus: 'SUBSCRIPTION_ACTIVE',
-    };
-    setCurrentUser(updatedUser);
-    saveToStorage(STORAGE_KEYS.USER, updatedUser);
-
-    addAuditEvent(
-      'SUBSCRIPTION_ACTIVATED',
-      'AUTH',
-      planKey,
-      `Activated ${planKey} plan via ${provider} (${phone}). Next billing date set.`
-    );
-
-    return {
-      success: true,
-      message: `Subscription successfully activated on ${provider}! Welcome to MARS Cashflow Full Operating Tier.`,
-    };
-  };
+  // Subscription monetization intentionally disabled for the current MARS Cashflow release.
+  // Future billing may be introduced without changing the core property, tenant, payment,
+  // expense, maintenance, or authorization architecture.
 
   // Audit Logging
   const addAuditEvent = (
@@ -426,7 +372,7 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const firebaseUser = await emailSignUp(data.email, data.password);
       const now = Date.now();
       const roleAssignment: RoleAssignment = { id: `role-primary-${firebaseUser.uid}`, roleKey: data.role, assignedAt: now, permissions: ['ALL'] };
-      const newUser: UserEntity = { id: firebaseUser.uid, phone: data.phone, email: data.email, displayName: data.displayName, primaryRole: data.role, accountStatus: 'ACTIVE', authProvider: 'PASSWORD', assignedRoles: [roleAssignment], activeContextId: roleAssignment.id, createdAt: now, trialStartDate: now, trialEndDate: now + 60 * 86400000, subscriptionStatus: 'TRIAL_ACTIVE', subscriptionPlan: 'FREE_TRIAL', language };
+      const newUser: UserEntity = { id: firebaseUser.uid, phone: data.phone, email: data.email, displayName: data.displayName, primaryRole: data.role, accountStatus: 'ACTIVE', authProvider: 'PASSWORD', assignedRoles: [roleAssignment], activeContextId: roleAssignment.id, createdAt: now, language };
       await setDoc(doc(db, 'users', firebaseUser.uid), { ...newUser, createdAt: serverTimestamp() });
       setCurrentUser(newUser);
       saveToStorage(STORAGE_KEYS.USER, newUser);
@@ -995,7 +941,7 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentRole,
         activeContext,
         authorizedRoles,
-        properties,
+        properties: visibleProperties,
         allProperties: visibleProperties,
         tenants: visibleTenants,
         allTenants: visibleTenants,
@@ -1010,13 +956,6 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         auditTrail,
         managers,
         notifications,
-        subscriptionStatus,
-        trialDaysRemaining,
-        trialStartDate,
-        trialEndDate,
-        isTrialActive,
-        isSubscriptionRequired,
-        activateSubscription,
         language,
         setLanguage,
         t,

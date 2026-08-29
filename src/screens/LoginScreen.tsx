@@ -9,7 +9,6 @@ import {
   Lock,
   ArrowRight,
   UserCheck,
-  Sparkles,
   CheckCircle2,
   PhoneCall
 } from 'lucide-react';
@@ -120,17 +119,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
               Uganda Real Estate & Rent Ledger
             </p>
           </div>
-        </div>
-
-        {/* 2 Months Free Trial Promo Pill */}
-        <div className="bg-gradient-to-r from-emerald-950/80 to-emerald-900/60 border border-[#0AB77F]/50 rounded-2xl p-3.5 text-center space-y-1 shadow-lg">
-          <div className="flex items-center justify-center gap-2 text-xs font-black text-[#62E3B6]">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>2-MONTH FREE TRIAL INCLUDED</span>
-          </div>
-          <p className="text-[11px] text-gray-300">
-            Full unrestricted access for your first 60 days. Subscription begins from month 3.
-          </p>
         </div>
 
         {/* Auth Card */}
@@ -295,7 +283,7 @@ Email Address *
                 type="submit"
                 className="w-full py-3 bg-[#0AB77F] hover:bg-[#07885E] active:scale-[0.98] text-white rounded-xl text-xs font-black shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
               >
-                <span>Start 2-Month Free Trial</span>
+                <span>Create Free Account</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </form>

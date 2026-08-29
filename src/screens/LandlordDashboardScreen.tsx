@@ -37,7 +37,6 @@ export const LandlordDashboardScreen: React.FC<LandlordDashboardScreenProps> = (
     payments,
     expenses,
     sendTenantReminder,
-    trialDaysRemaining,
     t,
   } = useMars();
 

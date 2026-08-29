@@ -6,7 +6,6 @@ import { RecordPaymentModal } from '../components/RecordPaymentModal';
 import { BatchReminderModal } from '../components/BatchReminderModal';
 import { AddPropertyModal } from '../components/AddPropertyModal';
 import { AddTenantModal } from '../components/AddTenantModal';
-import { SubscriptionModal } from '../components/SubscriptionModal';
 import { EmptyState } from '../components/EmptyState';
 import {
   Wallet,
@@ -27,7 +26,6 @@ import {
   CheckCircle2,
   X,
   ExternalLink,
-  Sparkles,
   Plus,
   ArrowRight
 } from 'lucide-react';
@@ -46,13 +44,8 @@ export const MainDashboardScreen: React.FC<MainDashboardScreenProps> = ({
     tenants,
     payments,
     expenses,
-    currentUser,
     currentRole,
     sendTenantReminder,
-    trialDaysRemaining,
-    trialEndDate,
-    isTrialActive,
-    isSubscriptionRequired,
     t,
   } = useMars();
 
@@ -60,7 +53,6 @@ export const MainDashboardScreen: React.FC<MainDashboardScreenProps> = ({
   const [showRecordPaymentModal, setShowRecordPaymentModal] = useState(false);
   const [showAddPropertyModal, setShowAddPropertyModal] = useState(false);
   const [showAddTenantModal, setShowAddTenantModal] = useState(false);
-  const [showSubModal, setShowSubModal] = useState(false);
   const [selectedTenantForPayment, setSelectedTenantForPayment] = useState<TenantEntity | null>(null);
   const [showBatchReminderModal, setShowBatchReminderModal] = useState(false);
   const [reminderToast, setReminderToast] = useState<string | null>(null);
@@ -123,7 +115,6 @@ export const MainDashboardScreen: React.FC<MainDashboardScreenProps> = ({
   return (
     <div className="space-y-6 pb-20 max-w-7xl mx-auto px-4 sm:px-6 pt-4">
       {/* Modals */}
-      <SubscriptionModal isOpen={showSubModal} onClose={() => setShowSubModal(false)} />
       <AddPropertyModal isOpen={showAddPropertyModal} onClose={() => setShowAddPropertyModal(false)} />
       <AddTenantModal isOpen={showAddTenantModal} onClose={() => setShowAddTenantModal(false)} />
       <RecordPaymentModal
@@ -140,40 +131,6 @@ export const MainDashboardScreen: React.FC<MainDashboardScreenProps> = ({
           setTimeout(() => setReminderToast(null), 4000);
         }}
       />
-
-      {/* Subscription Banner (Free for 2 Months, Subscription from Month 3) */}
-      <div className="bg-[#101915] text-white p-4 rounded-3xl border border-[#263D33] shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-[#E2F8EF]/20 text-[#62E3B6] flex items-center justify-center text-lg">
-            💎
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black text-[#62E3B6] uppercase tracking-wider">
-                {currentUser?.subscriptionPlan === 'FREE_TRIAL'
-                  ? `${trialDaysRemaining} Days Left in 2-Month Free Trial`
-                  : 'Active Subscription'}
-              </span>
-              <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-[#62E3B6]/20 text-[#62E3B6]">
-                {currentUser?.subscriptionPlan || 'FREE TRIAL'}
-              </span>
-            </div>
-            <p className="text-xs text-[#9FB2A9] font-medium">
-              {currentUser?.subscriptionPlan === 'FREE_TRIAL'
-                ? t.month3Notice
-                : 'All Uganda Real Estate modules and MARS Projects integration active.'}
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => setShowSubModal(true)}
-          className="px-4 py-2 bg-[#0AB77F] hover:bg-[#07885E] active:scale-[0.98] text-white text-xs font-black rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap self-stretch sm:self-auto justify-center"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>{t.viewPlans}</span>
-        </button>
-      </div>
 
       {/* Reminder Alert Banner */}
       {reminderToast && (
@@ -240,12 +197,11 @@ export const MainDashboardScreen: React.FC<MainDashboardScreenProps> = ({
           description={t.noPropertiesDesc}
           actionLabel={t.addProperty}
           onAction={() => setShowAddPropertyModal(true)}
-          secondaryActionLabel="Explore Settings & Tiers"
           onSecondaryAction={() => onNavigate('landlord_settings')}
           tips={[
             'Enter your building name (e.g. Ntinda Heights) and total rentable units.',
             'Each unit can then be assigned to tenants with custom monthly rent & deposit terms.',
-            'Your 60-day free trial gives you unlimited properties and automated receipting.',
+            'MARS Cashflow is currently free for authenticated customers.',
           ]}
         />
       ) : (

@@ -15,13 +15,11 @@ import {
   Smartphone,
   Save,
   RefreshCw,
-  Sparkles,
   Sliders,
   DollarSign,
   Download,
   Power
 } from 'lucide-react';
-import { SubscriptionModal } from '../components/SubscriptionModal';
 
 interface LandlordSettingsScreenProps {
   onNavigate: (route: string) => void;
@@ -38,15 +36,11 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
     resetManagerPin,
     updateManagerPermissions,
     removeManager,
-    trialDaysRemaining,
-    trialEndDate,
-    subscriptionStatus,
     resetToCleanDatabase,
     t,
   } = useMars();
 
-  const [activeTab, setActiveTab] = useState<'MANAGERS' | 'PORTFOLIO' | 'SUBSCRIPTION' | 'SECURITY'>('MANAGERS');
-  const [showSubModal, setShowSubModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'MANAGERS' | 'PORTFOLIO' | 'SECURITY'>('MANAGERS');
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // New Manager modal state
@@ -80,7 +74,7 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
         <div className="space-y-2">
           <h2 className="text-xl font-black text-[#17231E]">Access Denied: Landlord Authority Required</h2>
           <p className="text-xs text-[#65766F] max-w-md mx-auto leading-relaxed">
-            Manager accounts, tenants, and service contractors are strictly restricted from accessing ownership controls, manager authority delegations, and subscription settings.
+            Manager accounts, tenants, and service providers are restricted from accessing landlord ownership controls and manager authority delegations.
           </p>
         </div>
         <button
@@ -140,9 +134,6 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
 
   return (
     <div className="space-y-6 pb-20 max-w-7xl mx-auto px-4 sm:px-6 pt-4">
-      {/* Subscription Upgrade Modal */}
-      <SubscriptionModal isOpen={showSubModal} onClose={() => setShowSubModal(false)} />
-
       {/* Reset PIN Modal */}
       {resetTargetMgr && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
@@ -239,18 +230,11 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
               </span>
             </div>
             <p className="text-xs text-[#65766F]">
-              Delegate manager permissions, configure spending caps, and oversee subscription
+              Delegate manager permissions, configure spending caps, and oversee property operations
             </p>
           </div>
         </div>
 
-        <button
-          onClick={() => setShowSubModal(true)}
-          className="px-4 py-2 bg-[#101915] hover:bg-gray-800 text-[#62E3B6] rounded-xl text-xs font-black shadow-sm transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>{trialDaysRemaining} Days Left in Free Trial (Upgrade)</span>
-        </button>
       </div>
 
       {/* Feedback Toast */}
@@ -285,14 +269,6 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
           }`}
         >
           👨🏾‍💼 Estate Managers ({managers.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('SUBSCRIPTION')}
-          className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer whitespace-nowrap ${
-            activeTab === 'SUBSCRIPTION' ? 'bg-[#101915] text-white shadow-xs' : 'text-[#65766F] hover:text-[#17231E]'
-          }`}
-        >
-          💎 Subscription & 2-Month Trial
         </button>
         <button
           onClick={() => setActiveTab('PORTFOLIO')}
@@ -548,62 +524,6 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {/* TAB 2: SUBSCRIPTION */}
-      {activeTab === 'SUBSCRIPTION' && (
-        <div className="bg-white rounded-3xl p-6 border border-[#DFE8E3] shadow-xs space-y-6 max-w-3xl">
-          <div className="flex items-center gap-3 pb-4 border-b border-[#DFE8E3]">
-            <div className="w-12 h-12 rounded-2xl bg-[#E2F8EF] text-[#0AB77F] flex items-center justify-center text-2xl">
-              💎
-            </div>
-            <div>
-              <h3 className="font-black text-sm text-[#17231E]">2-Month Free Trial & Subscription Architecture</h3>
-              <p className="text-xs text-[#65766F]">
-                MARS Cashflow Uganda offers 60 days full access with zero fees. Subscription begins seamlessly from month 3.
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-[#101915] rounded-3xl p-6 text-white space-y-3 shadow-md">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black tracking-widest text-[#62E3B6] uppercase">
-                Current Subscription Lifecycle
-              </span>
-              <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-black text-white">
-                {currentUser?.subscriptionPlan === 'FREE_TRIAL' ? 'FREE TRIAL ACTIVE' : currentUser?.subscriptionPlan}
-              </span>
-            </div>
-
-            <div className="text-3xl font-black text-white">
-              {trialDaysRemaining} Days Remaining in Free Period
-            </div>
-
-            <p className="text-xs text-[#9FB2A9] leading-relaxed">
-              Your 2-month introductory period concludes on{' '}
-              <strong className="text-white">
-                {new Date(trialEndDate).toLocaleDateString('en-GB', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                })}
-              </strong>
-              . You can configure your MTN / Airtel MoMo automated subscription anytime before day 60.
-            </p>
-          </div>
-
-          <div className="flex items-center justify-between pt-2">
-            <div className="text-xs font-bold text-[#65766F]">
-              Official Rate: From UGX 35,000 / month (Standard Estate)
-            </div>
-            <button
-              onClick={() => setShowSubModal(true)}
-              className="px-6 py-2.5 bg-[#0AB77F] hover:bg-[#07885E] text-white text-xs font-black rounded-xl shadow-sm transition-all cursor-pointer"
-            >
-              Configure Subscription Plan
-            </button>
-          </div>
         </div>
       )}
 

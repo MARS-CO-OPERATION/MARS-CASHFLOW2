@@ -1443,7 +1443,7 @@ export const WorkspaceHubScreen: React.FC = () => {
                       <div className="p-3 bg-[#F9FBFA] rounded-xl border border-[#D8E2DC] text-[11px] text-[#4A5D53] space-y-1">
                         <p className="font-semibold text-[#0D3B2E]">Includes Questions:</p>
                         <p>• Full Legal Name & NIN / Passport Verification</p>
-                        <p>• Mobile Money Billing Number</p>
+                        <p>• Mobile Money number for rent and approved property transactions</p>
                         <p>• Assigned Property & Unit selection</p>
                         <p>• Next of Kin & Tenancy Start Date</p>
                       </div>
