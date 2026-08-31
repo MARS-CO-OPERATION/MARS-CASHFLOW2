@@ -366,13 +366,15 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (data: { displayName: string; phone: string; email: string; password: string; role: UserRoleKey; propertyName?: string }): Promise<boolean> => {
+  const register = async (data: { displayName: string; phone: string; email: string; password: string; role?: UserRoleKey; propertyName?: string }): Promise<boolean> => {
     if (!data.email.includes('@') || data.password.length < 8) return false;
+    // Strict production rule: Only landlords can self-register. Managers & tenants are invited/created by authorized landlords.
+    const assignedRole: UserRoleKey = 'LANDLORD';
     try {
       const firebaseUser = await emailSignUp(data.email, data.password);
       const now = Date.now();
-      const roleAssignment: RoleAssignment = { id: `role-primary-${firebaseUser.uid}`, roleKey: data.role, assignedAt: now, permissions: ['ALL'] };
-      const newUser: UserEntity = { id: firebaseUser.uid, phone: data.phone, email: data.email, displayName: data.displayName, primaryRole: data.role, accountStatus: 'ACTIVE', authProvider: 'PASSWORD', assignedRoles: [roleAssignment], activeContextId: roleAssignment.id, createdAt: now, language };
+      const roleAssignment: RoleAssignment = { id: `role-primary-${firebaseUser.uid}`, roleKey: assignedRole, assignedAt: now, permissions: ['ALL'] };
+      const newUser: UserEntity = { id: firebaseUser.uid, phone: data.phone, email: data.email, displayName: data.displayName, primaryRole: assignedRole, accountStatus: 'ACTIVE', authProvider: 'PASSWORD', assignedRoles: [roleAssignment], activeContextId: roleAssignment.id, createdAt: now, language };
       await setDoc(doc(db, 'users', firebaseUser.uid), { ...newUser, createdAt: serverTimestamp() });
       setCurrentUser(newUser);
       saveToStorage(STORAGE_KEYS.USER, newUser);
@@ -896,13 +898,13 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       recipientPhone: phone,
       title: 'Rent Balance Notice',
       message: msg,
-      channel: 'SMS_GATEWAY',
+      channel: 'IN_APP',
       deliveryStatus: 'SENT',
       timestamp: Date.now(),
     };
 
     setNotifications((prev) => [newNotification, ...prev]);
-    addAuditEvent('SMS_REMINDER_SENT', 'NOTIFICATION', newNotification.id, `Sent SMS reminder to ${tenantName} (${phone}) for UGX ${amountDue.toLocaleString()}`);
+    addAuditEvent('NOTIFICATION_DISPATCHED', 'NOTIFICATION', newNotification.id, `In-app rent reminder recorded for ${tenantName} (${phone}) for UGX ${amountDue.toLocaleString()}`);
 
     if (onSuccess) onSuccess();
   };

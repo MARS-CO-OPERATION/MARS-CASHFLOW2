@@ -71,13 +71,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
       phone: regPhone,
       email: regEmail,
       password: regPin,
-      role: selectedRole,
+      role: 'LANDLORD',
       propertyName: regProperty,
     });
 
     setIsSubmitting(false);
     if (success) {
-      onNavigate(USER_ROLES[currentUser?.primaryRole || selectedRole].defaultRoute);
+      onNavigate('landlord');
     } else {
       setLoginError('Registration could not be completed. Check your details and try again.');
     }
@@ -149,32 +149,46 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
             </div>
           )}
 
-          {/* Role Picker for Context */}
-          <div className="space-y-1.5">
-            <label className="block text-xs font-extrabold text-[#17231E]">
-              Account Working Authority
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {(['LANDLORD', 'MANAGER', 'TENANT', 'SERVICE_PROVIDER'] as UserRoleKey[]).map((roleKey) => {
-                const isSelected = selectedRole === roleKey;
-                return (
-                  <button
-                    key={roleKey}
-                    type="button"
-                    onClick={() => setSelectedRole(roleKey)}
-                    className={`py-2 px-3 rounded-xl border text-xs font-extrabold transition-all cursor-pointer text-left flex items-center justify-between ${
-                      isSelected
-                        ? 'bg-[#E2F8EF] border-[#0AB77F] text-[#0AB77F]'
-                        : 'bg-[#F5F8F6] border-[#DFE8E3] text-[#65766F] hover:bg-gray-100'
-                    }`}
-                  >
-                    <span>{USER_ROLES[roleKey].title.split('/')[0]}</span>
-                    {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-[#0AB77F]" />}
-                  </button>
-                );
-              })}
+          {/* Role Picker for Sign In Context */}
+          {activeTab === 'login' && (
+            <div className="space-y-1.5">
+              <label className="block text-xs font-extrabold text-[#17231E]">
+                Working Perspective
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {(['LANDLORD', 'MANAGER', 'TENANT'] as UserRoleKey[]).map((roleKey) => {
+                  const isSelected = selectedRole === roleKey;
+                  return (
+                    <button
+                      key={roleKey}
+                      type="button"
+                      onClick={() => setSelectedRole(roleKey)}
+                      className={`py-2 px-2.5 rounded-xl border text-xs font-extrabold transition-all cursor-pointer text-center flex flex-col items-center gap-1 ${
+                        isSelected
+                          ? 'bg-[#E2F8EF] border-[#0AB77F] text-[#0AB77F]'
+                          : 'bg-[#F5F8F6] border-[#DFE8E3] text-[#65766F] hover:bg-gray-100'
+                      }`}
+                    >
+                      <span className="text-base">{USER_ROLES[roleKey].icon}</span>
+                      <span className="text-[11px] leading-tight">{USER_ROLES[roleKey].title.split('/')[0]}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
+
+          {activeTab === 'register' && (
+            <div className="p-3 bg-[#E2F8EF] border border-[#0AB77F]/30 rounded-2xl space-y-1">
+              <div className="flex items-center gap-2 text-[#0AB77F] font-black text-xs">
+                <span>👑</span>
+                <span>Landlord Account Registration</span>
+              </div>
+              <p className="text-[11px] text-[#263D33] leading-relaxed">
+                Self-registration creates a Landlord portfolio account. Managers and Tenants are invited and assigned directly through the Landlord dashboard.
+              </p>
+            </div>
+          )}
 
           {activeTab === 'login' ? (
             <form onSubmit={handleLogin} className="space-y-4">

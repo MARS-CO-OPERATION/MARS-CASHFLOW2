@@ -193,9 +193,8 @@ fun MultiRoleSelectionScreen(
         // Fallback default role items
         val defaultRoles = listOf(
           Triple("👑", "Landlord / Owner Workspace", UserRole.LANDLORD),
-          Triple("👨🏾💼", "Manager / Caretaker Hub", UserRole.MANAGER),
-          Triple("👤", "Tenant / Resident Portal", UserRole.TENANT),
-          Triple("🛠️", "Service Provider / Contractor", UserRole.SERVICE_PROVIDER)
+          Triple("👨🏾‍💼", "Manager / Caretaker Hub", UserRole.MANAGER),
+          Triple("👤", "Tenant / Resident Portal", UserRole.TENANT)
         )
 
         defaultRoles.forEach { (icon, title, role) ->

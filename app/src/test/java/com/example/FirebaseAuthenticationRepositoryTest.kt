@@ -21,7 +21,6 @@ class FirebaseAuthenticationRepositoryTest {
     assertEquals(UserRole.LANDLORD, UserRole.fromKey("LANDLORD"))
     assertEquals(UserRole.MANAGER, UserRole.fromKey("MANAGER"))
     assertEquals(UserRole.TENANT, UserRole.fromKey("TENANT"))
-    assertEquals(UserRole.SERVICE_PROVIDER, UserRole.fromKey("SERVICE_PROVIDER"))
     assertEquals(UserRole.MULTIROLE, UserRole.fromKey("MULTIROLE"))
     assertEquals(UserRole.LANDLORD, UserRole.fromKey("UNKNOWN_ROLE"))
   }

@@ -569,7 +569,6 @@ class FirebaseAuthenticationRepositoryImpl(
         UserRole.LANDLORD -> "USER_LANDLORD_1"
         UserRole.MANAGER -> "USER_MGR_1"
         UserRole.TENANT -> "USER_TENANT_1"
-        UserRole.SERVICE_PROVIDER -> "USER_CONTRACTOR_1"
         UserRole.MULTIROLE -> "USER_MULTIROLE_1"
       }
 
@@ -579,7 +578,6 @@ class FirebaseAuthenticationRepositoryImpl(
           UserRole.LANDLORD -> "Dr. Ronald Katende (Demo Landlord)"
           UserRole.MANAGER -> "Peter Sserwadda (Demo Caretaker)"
           UserRole.TENANT -> "Sarah Namubiru (Demo Tenant)"
-          UserRole.SERVICE_PROVIDER -> "Kato Plumbing & Electrical (Demo Contractor)"
           UserRole.MULTIROLE -> "Grace Nakate (Portfolio Owner & Manager)"
         }
         val demoEmail = "${role.key.lowercase()}@marsdemo.ug"

@@ -110,7 +110,6 @@ fun LoginScreen(
       UserRole.LANDLORD -> onNavigate("landlord")
       UserRole.MANAGER -> onNavigate("caretaker")
       UserRole.TENANT -> onNavigate("tenant")
-      UserRole.SERVICE_PROVIDER -> onNavigate("service_providers")
       UserRole.MULTIROLE -> onNavigate("multi_role_selection")
       else -> onNavigate("home")
     }
@@ -672,22 +671,6 @@ fun LoginScreen(
             ) {
               OutlinedButton(
                 onClick = {
-                  emailInput = "contractor@mars.ug"
-                  passwordInput = "123456"
-                  phoneInput = "0772333444"
-                  pinInput = "2222"
-                  performPhoneLogin("0772333444", "2222")
-                },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
-                contentPadding = PaddingValues(4.dp)
-              ) {
-                Text("🛠️ Contractor", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MarsInk)
-              }
-
-              OutlinedButton(
-                onClick = {
                   emailInput = "multirole@mars.ug"
                   passwordInput = "123456"
                   phoneInput = "0779999999"
@@ -720,68 +703,17 @@ fun LoginScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
           ) {
             Text(
-              "Select Your Primary Role in MARS",
+              "👑 Landlord Account Registration",
               fontWeight = FontWeight.Black,
               fontSize = 14.sp,
               color = MarsInk
             )
-
-            // Role selection cards
-            val roles = listOf(
-              UserRole.LANDLORD,
-              UserRole.MANAGER,
-              UserRole.TENANT,
-              UserRole.SERVICE_PROVIDER
+            Text(
+              "Self-registration establishes a Landlord portfolio account. Caretakers/Managers and Tenants are invited and assigned directly through your property dashboard.",
+              fontSize = 12.sp,
+              color = MarsMuted,
+              lineHeight = 16.sp
             )
-
-            roles.forEach { role ->
-              val isSelected = regRole == role
-              Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = if (isSelected) MarsSurfaceLight else Color.White,
-                border = BorderStroke(
-                  width = if (isSelected) 2.dp else 1.dp,
-                  color = if (isSelected) MarsGreen else Color(0xFFE2E8F0)
-                ),
-                modifier = Modifier
-                  .fillMaxWidth()
-                  .clickable { regRole = role }
-              ) {
-                Row(
-                  modifier = Modifier.padding(12.dp),
-                  verticalAlignment = Alignment.CenterVertically,
-                  horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                  Box(
-                    modifier = Modifier
-                      .size(38.dp)
-                      .background(if (isSelected) MarsGreen else MarsBg, RoundedCornerShape(10.dp)),
-                    contentAlignment = Alignment.Center
-                  ) {
-                    Text(role.icon, fontSize = 18.sp)
-                  }
-                  Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                      role.title,
-                      fontWeight = FontWeight.Bold,
-                      fontSize = 13.sp,
-                      color = if (isSelected) MarsGreen else MarsInk
-                    )
-                    Text(
-                      role.subtitle,
-                      fontSize = 11.sp,
-                      color = MarsMuted,
-                      lineHeight = 14.sp
-                    )
-                  }
-                  RadioButton(
-                    selected = isSelected,
-                    onClick = { regRole = role },
-                    colors = RadioButtonDefaults.colors(selectedColor = MarsGreen)
-                  )
-                }
-              }
-            }
 
             HorizontalDivider(color = Color(0xFFE2E8F0))
 
@@ -850,7 +782,7 @@ fun LoginScreen(
               } else {
                 Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Create Account as ${regRole.title.split("/").first().trim()}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("Create Landlord Account", fontWeight = FontWeight.Bold, fontSize = 13.sp)
               }
             }
           }

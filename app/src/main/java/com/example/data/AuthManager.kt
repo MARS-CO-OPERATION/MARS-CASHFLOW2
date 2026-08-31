@@ -172,7 +172,6 @@ class AuthManager(
         UserRole.LANDLORD -> "$cleanName's Portfolio (Owner)"
         UserRole.MANAGER -> "$cleanName's Management Hub (Caretaker)"
         UserRole.TENANT -> "$cleanName's Rental Portal (Tenant)"
-        UserRole.SERVICE_PROVIDER -> "$cleanName's Field Services (Contractor)"
         UserRole.MULTIROLE -> "$cleanName's Multi-Role Hub"
       }
 

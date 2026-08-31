@@ -69,6 +69,10 @@ secrets {
   propertiesFileName = ".env"
   defaultPropertiesFileName = ".env.example"
   ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")
+  ignoreList.add("VITE_APP_ENV")
+  ignoreList.add("VITE_GOOGLE_MAPS_API_KEY")
+  ignoreList.add("key:.*VITE_.*")
+  ignoreList.add("sdk.dir")
 }
 
 googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }

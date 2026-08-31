@@ -26,7 +26,7 @@ export const MultiRoleSelectionScreen: React.FC<MultiRoleSelectionScreenProps> =
     onNavigate(role.defaultRoute);
   };
 
-  const roleKeys: UserRoleKey[] = ['LANDLORD', 'MANAGER', 'TENANT', 'SERVICE_PROVIDER'];
+  const roleKeys: UserRoleKey[] = ['LANDLORD', 'MANAGER', 'TENANT'];
 
   return (
     <div className="space-y-6 pb-20 max-w-5xl mx-auto px-4 sm:px-6 pt-4">
@@ -111,14 +111,6 @@ export const MultiRoleSelectionScreen: React.FC<MultiRoleSelectionScreenProps> =
                         <li>• 1-Click Mobile Money (MTN/Airtel) Payments</li>
                         <li>• Submit Direct Repair Tickets & Photos</li>
                         <li>• Management Help Desk Direct Dial</li>
-                      </>
-                    )}
-                    {key === 'SERVICE_PROVIDER' && (
-                      <>
-                        <li>• Work Order Queue & Task Acceptance</li>
-                        <li>• Repair Quotations & Completion Approvals</li>
-                        <li>• Direct Call Dispatch from Caretakers</li>
-                        <li>• Artisan Rating & Service History</li>
                       </>
                     )}
                   </ul>
