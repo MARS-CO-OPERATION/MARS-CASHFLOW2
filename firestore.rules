@@ -53,6 +53,31 @@ service cloud.firestore {
       return isSignedIn() && (getUserRole() == 'TENANT');
     }
 
+    // Platform (Class A) Security Functions
+    function isPlatformUser() {
+      return isSignedIn() && hasUserDoc() &&
+        (('accountType' in getUserDoc() && getUserDoc().accountType == 'PLATFORM') ||
+         ('platformRole' in getUserDoc() && getUserDoc().platformRole != null));
+    }
+
+    function getPlatformRole() {
+      return isPlatformUser() && ('platformRole' in getUserDoc())
+        ? getUserDoc().platformRole
+        : '';
+    }
+
+    function isPrincipalFounder() {
+      return isPlatformUser() && getPlatformRole() == 'PRINCIPAL_FOUNDER';
+    }
+
+    function isPlatformAdmin() {
+      return isPlatformUser() && getPlatformRole() in ['PRINCIPAL_FOUNDER', 'CO_FOUNDER', 'PLATFORM_ADMIN', 'ENGINEERING_LEAD'];
+    }
+
+    function isBoardMember() {
+      return isPlatformUser() && getPlatformRole() in ['PRINCIPAL_FOUNDER', 'CO_FOUNDER', 'BOARD_DIRECTOR'];
+    }
+
     // Property ownership and management relations
     function isPropertyOwner(propertyId) {
       return isSignedIn() &&
@@ -472,6 +497,61 @@ service cloud.firestore {
         isValidServiceProvider(incoming()) &&
         (isLandlord() || isManager());
       allow delete: if isSignedIn() && isValidId(providerId) && isLandlord();
+    }
+
+    // =========================================================================
+    // 11. MARS CORPORATION PLATFORM HQ — CLASS A CORPORATE RULES
+    // =========================================================================
+
+    // Corporate Personnel & Platform Accounts
+    match /platform_users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isPlatformAdmin() || isBoardMember());
+      allow list: if isPlatformAdmin() || isBoardMember();
+      allow create, update, delete: if isPlatformAdmin() || isPrincipalFounder();
+    }
+
+    // Multi-Product Registry & Feature Flags
+    match /products/{productId} {
+      allow get, list: if true; // Product metadata & feature flags readable by client apps
+      allow create, update, delete: if isPlatformAdmin() || isPrincipalFounder();
+    }
+
+    // Global Subscription Tiers & Pricing Engine
+    match /subscription_tiers/{tierId} {
+      allow get, list: if true; // Pricing and tier capabilities publicly readable
+      allow create, update, delete: if isPlatformAdmin() || isPrincipalFounder();
+    }
+
+    // Platform Invitation Tokens
+    match /platform_invitations/{invitationId} {
+      allow get: if true; // Token verification on invitation redemption
+      allow list: if isPlatformAdmin() || isPrincipalFounder();
+      allow create, update, delete: if isPlatformAdmin() || isPrincipalFounder();
+    }
+
+    // Board Governance Reports & Executive Memos (Zero Tenant PII)
+    match /board_reports/{reportId} {
+      allow get, list: if isBoardMember() || isPrincipalFounder() || isPlatformAdmin();
+      allow create, update, delete: if isPrincipalFounder() || isPlatformAdmin();
+    }
+
+    // Investor Relations & Macro Financial KPIs (Zero Tenant PII)
+    match /investor_metrics/{metricId} {
+      allow get, list: if isPlatformUser();
+      allow create, update, delete: if isPrincipalFounder() || isPlatformAdmin();
+    }
+
+    // Government & Statutory Regulatory Access Clearances
+    match /government_access/{accessId} {
+      allow get, list: if isPlatformAdmin() || isPrincipalFounder();
+      allow create, update, delete: if isPrincipalFounder();
+    }
+
+    // Platform-Wide Immutable Audit Trail
+    match /platform_audit_logs/{logId} {
+      allow get, list: if isPlatformAdmin() || isBoardMember() || isPrincipalFounder();
+      allow create: if isSignedIn(); // System audit logs can be appended
+      allow update, delete: if false; // Audit logs are immutable and tamper-proof
     }
   }
 }

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MarsProvider, useMars } from './context/MarsContext';
+import { PlatformProvider } from './platform/PlatformContext';
+import { PlatformHQLayout } from './platform/PlatformHQLayout';
 import { Navbar } from './components/Navbar';
 import { BottomNav } from './components/BottomNav';
 
@@ -26,12 +28,22 @@ import { WorkspaceHubScreen } from './screens/WorkspaceHubScreen';
 
 const MainAppContent: React.FC = () => {
   const { currentUser } = useMars();
-  const [currentRoute, setCurrentRoute] = useState<string>('dashboard');
+  const [currentRoute, setCurrentRoute] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('mode') === 'platform' || window.location.pathname.startsWith('/platform')) {
+        return 'platform_hq';
+      }
+    }
+    return 'dashboard';
+  });
   const [activePaymentId, setActivePaymentId] = useState<string | null>(null);
 
   // Never expose customer data screens without an authenticated Firebase profile.
   useEffect(() => {
-    if (!currentUser && currentRoute !== 'login') setCurrentRoute('login');
+    if (!currentUser && currentRoute !== 'login' && currentRoute !== 'platform_hq') {
+      setCurrentRoute('login');
+    }
   }, [currentUser, currentRoute]);
 
   const handleNavigate = (route: string) => {
@@ -44,6 +56,15 @@ const MainAppContent: React.FC = () => {
     setCurrentRoute('receipt_detail');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // If current route is Platform HQ, mount the dedicated Corporate Platform HQ Control Plane
+  if (currentRoute === 'platform_hq') {
+    return (
+      <PlatformProvider>
+        <PlatformHQLayout onReturnToCashflow={() => handleNavigate('dashboard')} />
+      </PlatformProvider>
+    );
+  }
 
   const renderScreen = () => {
     switch (currentRoute) {
@@ -158,3 +179,4 @@ export function App() {
 }
 
 export default App;
+

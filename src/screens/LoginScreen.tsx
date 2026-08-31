@@ -560,10 +560,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
           )}
         </div>
 
-        {/* Security badge */}
-        <div className="text-center text-[11px] text-[#9FB2A9] flex items-center justify-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-[#0AB77F]" />
-          <span>Secured with Uganda Real Estate Ledger Integrity & Firebase Auth</span>
+        {/* Security badge & Corporate Portal */}
+        <div className="text-center space-y-2">
+          <div className="text-[11px] text-[#9FB2A9] flex items-center justify-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-[#0AB77F]" />
+            <span>Secured with Uganda Real Estate Ledger Integrity & Firebase Auth</span>
+          </div>
+
+          <div className="pt-2 border-t border-[#DFE8E3]/60">
+            <button
+              onClick={() => onNavigate('platform_hq')}
+              className="text-[11px] font-extrabold text-[#17231E] hover:text-[#0AB77F] inline-flex items-center gap-1 transition-colors cursor-pointer"
+            >
+              <span>🏛️ MARS Corporation Executive or Partner? Access Platform HQ →</span>
+            </button>
+          </div>
         </div>
       </div>
 
