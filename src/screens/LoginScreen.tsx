@@ -71,9 +71,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
       setActiveTab('register');
     } else if (result === 'EXISTING') {
       onNavigate('dashboard');
-    } else {
-      setLoginError('Google sign-in was cancelled or could not be authenticated.');
-    }
+  } else if (result.startsWith('ERROR:')) {
+    const reason = result.slice('ERROR:'.length);
+    const messages: Record<string, string> = {
+      cancelled: 'Google sign-in was cancelled.',
+      'popup-blocked': 'Your browser blocked the Google sign-in window. Please allow pop-ups and try again.',
+      'unauthorized-domain': 'This preview domain is not authorized for Google sign-in. Please use the deployed MARS domain or contact an administrator.',
+      configuration: 'Google sign-in is not configured for this MARS environment.',
+      network: 'Google sign-in could not connect. Check your internet connection and try again.',
+      'invalid-credential': 'Google could not verify this account. Please try again.',
+      'account-exists': 'This email already uses another sign-in method. Sign in with email/password first to link Google safely.',
+      unknown: 'Google sign-in could not be completed. Please try again.',
+    };
+    setLoginError(messages[reason] ?? messages.unknown);
+  } else {
+    setLoginError('Google sign-in could not be completed. Please try again.');
+  }
   };
 
   const handleRegister = async (e: React.FormEvent) => {

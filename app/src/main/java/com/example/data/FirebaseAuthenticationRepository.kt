@@ -483,8 +483,9 @@ class FirebaseAuthenticationRepositoryImpl(
       }
 
       val uid = fbUser?.uid ?: UUID.randomUUID().toString()
-      val email = fbUser?.email ?: "google.user@mars.ug"
-      val displayName = fbUser?.displayName ?: defaultName
+      val email = fbUser?.email
+        ?: return@withContext Result.failure(IllegalStateException("Google account did not provide an email address."))
+      val displayName = fbUser.displayName ?: defaultName
 
       val user = syncFirebaseUserToLocal(fbUser, defaultRole, displayName)
 

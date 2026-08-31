@@ -33,7 +33,7 @@ import {
   clearMarsStorage,
 } from '../services/store';
 import { Language, translations, Translations } from '../utils/i18n';
-import { auth, onAuthStateChanged, emailSignIn, emailSignUp, googleAuthSignIn, sendVerificationEmail, logout as firebaseLogout } from '../services/firebase';
+import { auth, onAuthStateChanged, emailSignIn, emailSignUp, googleAuthSignIn, GoogleAuthError, sendVerificationEmail, logout as firebaseLogout } from '../services/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
@@ -72,7 +72,7 @@ interface MarsContextType {
   
   // Auth & Identity
   login: (identifier: string, password: string) => Promise<boolean>;
-  googleLogin: () => Promise<'EXISTING' | 'NEW' | 'ERROR'>;
+  googleLogin: () => Promise<'EXISTING' | 'NEW' | `ERROR:${string}`>;
   completeGoogleOnboarding: (role: UserRoleKey, displayName?: string, phone?: string) => Promise<boolean>;
   register: (data: { displayName: string; phone: string; email: string; password: string; role: UserRoleKey; propertyName?: string }) => Promise<boolean>;
   logout: () => void;
@@ -369,16 +369,17 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const googleLogin = async (): Promise<'EXISTING' | 'NEW' | 'ERROR'> => {
+  const googleLogin = async (): Promise<'EXISTING' | 'NEW' | `ERROR:${string}`> => {
     try {
       const firebaseUser = await googleAuthSignIn();
       const profile = await getDoc(doc(db, 'users', firebaseUser.uid));
       if (profile.exists()) return 'EXISTING';
       setPendingGoogleUser(firebaseUser);
       return 'NEW';
-    } catch (error: any) {
-      if (error?.code === 'auth/popup-closed-by-user' || error?.code === 'auth/cancelled-popup-request') return 'ERROR';
-      return 'ERROR';
+    } catch (error: unknown) {
+      const reason = error instanceof GoogleAuthError ? error.reason : 'unknown';
+      if (import.meta.env.DEV) console.warn('[v0] MARS Google auth state:', reason);
+      return `ERROR:${reason}`;
     }
   };
 

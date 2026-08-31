@@ -3,6 +3,8 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendEmailVerification,
@@ -31,9 +33,68 @@ export const googleAuthProvider = new GoogleAuthProvider();
 googleAuthProvider.setCustomParameters({ prompt: 'select_account' });
 export const googleWorkspaceProvider = new GoogleAuthProvider();
 
+export type GoogleAuthFailureCode =
+  | 'cancelled'
+  | 'popup-blocked'
+  | 'unauthorized-domain'
+  | 'configuration'
+  | 'network'
+  | 'invalid-credential'
+  | 'account-exists'
+  | 'unknown';
+
+export class GoogleAuthError extends Error {
+  constructor(public readonly reason: GoogleAuthFailureCode, cause?: unknown) {
+    super(reason);
+    this.name = 'GoogleAuthError';
+    Object.assign(this, { cause });
+  }
+}
+
+const classifyGoogleAuthError = (error: unknown): GoogleAuthError => {
+  const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
+  if (import.meta.env.DEV) console.warn('[v0] Google authentication failed:', code || 'unknown');
+  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return new GoogleAuthError('cancelled', error);
+  if (code === 'auth/popup-blocked') return new GoogleAuthError('popup-blocked', error);
+  if (code === 'auth/unauthorized-domain') return new GoogleAuthError('unauthorized-domain', error);
+  if (code === 'auth/operation-not-supported-in-this-environment' || code === 'auth/invalid-api-key' || code === 'auth/invalid-oauth-client-id') return new GoogleAuthError('configuration', error);
+  if (code === 'auth/network-request-failed') return new GoogleAuthError('network', error);
+  if (code === 'auth/account-exists-with-different-credential' || code === 'auth/credential-already-in-use') return new GoogleAuthError('account-exists', error);
+  if (code === 'auth/invalid-credential') return new GoogleAuthError('invalid-credential', error);
+  return new GoogleAuthError('unknown', error);
+};
+
 export const googleAuthSignIn = async (): Promise<User> => {
-  const result = await signInWithPopup(auth, googleAuthProvider);
-  return result.user;
+  try {
+    // First, check for any pending redirect result from popup-blocked scenario
+    try {
+      const redirectResult = await getRedirectResult(auth);
+      if (redirectResult?.user) return redirectResult.user;
+    } catch (e) {
+      // Redirect result check failed, continue with popup
+    }
+
+    // Try popup first
+    const result = await signInWithPopup(auth, googleAuthProvider);
+    return result.user;
+  } catch (error) {
+    const classified = classifyGoogleAuthError(error);
+    // If popup is blocked, use redirect as fallback
+    if (classified.reason === 'popup-blocked') {
+      await signInWithRedirect(auth, googleAuthProvider);
+      throw new GoogleAuthError('popup-blocked', error);
+    }
+    throw classified;
+  }
+};
+
+export const resolveGoogleRedirect = async (): Promise<User | null> => {
+  try {
+    const result = await getRedirectResult(auth);
+    return result?.user || null;
+  } catch (error) {
+    throw classifyGoogleAuthError(error);
+  }
 };
 
 export const WORKSPACE_SCOPES = [

@@ -382,8 +382,9 @@ class AuthManager(
       }
 
       val uid = fbUser.uid
-      val email = fbUser.email ?: "${uid}@gmail.com"
-      val displayName = fbUser.displayName ?: "Google User"
+      val email = fbUser.email
+        ?: return@withContext Result.failure(IllegalStateException("Google account did not provide an email address."))
+      val displayName = fbUser.displayName ?: email.substringBefore('@')
 
       // Check Firestore profile
       var user: UserEntity? = null
