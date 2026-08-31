@@ -33,7 +33,15 @@ import {
   clearMarsStorage,
 } from '../services/store';
 import { Language, translations, Translations } from '../utils/i18n';
-import { auth, onAuthStateChanged, emailSignIn, emailSignUp, logout as firebaseLogout } from '../services/firebase';
+import {
+  auth,
+  onAuthStateChanged,
+  emailSignIn,
+  emailSignUp,
+  googleSignIn,
+  requestPasswordReset,
+  logout as firebaseLogout,
+} from '../services/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
@@ -71,9 +79,11 @@ interface MarsContextType {
   triggerSync: (callback?: (status: boolean, message: string) => void) => void;
   
   // Auth & Identity
-  login: (identifier: string, password: string) => Promise<boolean>;
-  register: (data: { displayName: string; phone: string; email: string; password: string; role: UserRoleKey; propertyName?: string }) => Promise<boolean>;
-  logout: () => void;
+  login: (identifier: string, password: string) => Promise<{ success: boolean; message?: string }>;
+  loginWithGoogle: () => Promise<{ success: boolean; message?: string }>;
+  register: (data: { displayName: string; phone: string; email: string; password: string; role?: UserRoleKey; propertyName?: string }) => Promise<{ success: boolean; message?: string }>;
+  sendPasswordReset: (email: string) => Promise<{ success: boolean; message: string }>;
+  logout: () => Promise<void>;
   switchWorkspace: (roleKey: UserRoleKey, workspaceTitle?: string) => void;
   switchContext: (contextId: string) => void;
   
@@ -206,13 +216,47 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.removeItem(STORAGE_KEYS.USER);
         return;
       }
-      const profile = await getDoc(doc(db, 'users', firebaseUser.uid));
-      if (!profile.exists()) {
-        setCurrentUser(null);
-        return;
+      try {
+        const profileSnap = await getDoc(doc(db, 'users', firebaseUser.uid));
+        if (profileSnap.exists()) {
+          const data = profileSnap.data() as UserEntity;
+          const userObj: UserEntity = {
+            ...data,
+            id: firebaseUser.uid,
+            email: firebaseUser.email || data.email,
+            displayName: data.displayName || firebaseUser.displayName || 'MARS User',
+          };
+          setCurrentUser(userObj);
+          saveToStorage(STORAGE_KEYS.USER, userObj);
+        } else {
+          // If profile does not exist yet (e.g. initial Google login before explicit setDoc), create it as LANDLORD
+          const now = Date.now();
+          const roleAssignment: RoleAssignment = {
+            id: `role-primary-${firebaseUser.uid}`,
+            roleKey: 'LANDLORD',
+            assignedAt: now,
+            permissions: ['ALL'],
+          };
+          const newUser: UserEntity = {
+            id: firebaseUser.uid,
+            phone: firebaseUser.phoneNumber || '',
+            email: firebaseUser.email || '',
+            displayName: firebaseUser.displayName || 'MARS Landlord',
+            primaryRole: 'LANDLORD',
+            accountStatus: 'ACTIVE',
+            authProvider: firebaseUser.providerData.some((p) => p.providerId === 'google.com') ? 'GOOGLE' : 'PASSWORD',
+            assignedRoles: [roleAssignment],
+            activeContextId: roleAssignment.id,
+            createdAt: now,
+            language: 'en',
+          };
+          await setDoc(doc(db, 'users', firebaseUser.uid), { ...newUser, createdAt: serverTimestamp() });
+          setCurrentUser(newUser);
+          saveToStorage(STORAGE_KEYS.USER, newUser);
+        }
+      } catch (err) {
+        console.warn('Profile fetch error on auth state change:', err);
       }
-      const data = profile.data() as UserEntity;
-      setCurrentUser({ ...data, id: firebaseUser.uid, email: firebaseUser.email || data.email });
     });
     return unsubscribe;
   }, []);
@@ -356,37 +400,227 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (targetRole) switchContext(targetRole.id);
   };
 
-  const login = async (identifier: string, password: string): Promise<boolean> => {
-    if (!identifier.includes('@') || password.length < 8) return false;
+  const login = async (identifier: string, password: string): Promise<{ success: boolean; message?: string }> => {
+    const cleanEmail = identifier.trim();
+    if (!cleanEmail.includes('@')) {
+      return { success: false, message: 'Please enter a valid email address.' };
+    }
+    if (password.length < 8) {
+      return { success: false, message: 'Password must be at least 8 characters long.' };
+    }
     try {
-      await emailSignIn(identifier, password);
-      return true;
-    } catch {
-      return false;
+      const fbUser = await emailSignIn(cleanEmail, password);
+      const profileSnap = await getDoc(doc(db, 'users', fbUser.uid));
+      let user: UserEntity;
+      if (profileSnap.exists()) {
+        const data = profileSnap.data() as UserEntity;
+        user = { ...data, id: fbUser.uid, email: fbUser.email || data.email };
+      } else {
+        const now = Date.now();
+        const roleAssignment: RoleAssignment = {
+          id: `role-primary-${fbUser.uid}`,
+          roleKey: 'LANDLORD',
+          assignedAt: now,
+          permissions: ['ALL'],
+        };
+        user = {
+          id: fbUser.uid,
+          phone: fbUser.phoneNumber || '',
+          email: fbUser.email || cleanEmail,
+          displayName: fbUser.displayName || 'MARS Landlord',
+          primaryRole: 'LANDLORD',
+          accountStatus: 'ACTIVE',
+          authProvider: 'PASSWORD',
+          assignedRoles: [roleAssignment],
+          activeContextId: roleAssignment.id,
+          createdAt: now,
+          language,
+        };
+        await setDoc(doc(db, 'users', fbUser.uid), { ...user, createdAt: serverTimestamp() });
+      }
+      setCurrentUser(user);
+      saveToStorage(STORAGE_KEYS.USER, user);
+      addAuditEvent('LOGIN', 'SYSTEM', user.id, `User logged in with email: ${user.email}`);
+      return { success: true };
+    } catch (err: any) {
+      const code = err?.code || '';
+      let msg = 'Invalid email or password. Please check your credentials.';
+      if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        msg = 'Invalid email or password.';
+      } else if (code === 'auth/too-many-requests') {
+        msg = 'Access temporarily disabled due to many failed login attempts. Please try again in a few minutes.';
+      } else if (code === 'auth/network-request-failed') {
+        msg = 'Network connection issue. Please check your internet connection.';
+      }
+      return { success: false, message: msg };
     }
   };
 
-  const register = async (data: { displayName: string; phone: string; email: string; password: string; role?: UserRoleKey; propertyName?: string }): Promise<boolean> => {
-    if (!data.email.includes('@') || data.password.length < 8) return false;
+  const loginWithGoogle = async (): Promise<{ success: boolean; message?: string }> => {
+    try {
+      const res = await googleSignIn();
+      const fbUser = res.user;
+      const profileSnap = await getDoc(doc(db, 'users', fbUser.uid));
+      let user: UserEntity;
+      if (profileSnap.exists()) {
+        const data = profileSnap.data() as UserEntity;
+        user = { ...data, id: fbUser.uid, email: fbUser.email || data.email };
+      } else {
+        const now = Date.now();
+        const roleAssignment: RoleAssignment = {
+          id: `role-primary-${fbUser.uid}`,
+          roleKey: 'LANDLORD',
+          assignedAt: now,
+          permissions: ['ALL'],
+        };
+        user = {
+          id: fbUser.uid,
+          phone: fbUser.phoneNumber || '',
+          email: fbUser.email || '',
+          displayName: fbUser.displayName || 'MARS Landlord',
+          primaryRole: 'LANDLORD',
+          accountStatus: 'ACTIVE',
+          authProvider: 'GOOGLE',
+          assignedRoles: [roleAssignment],
+          activeContextId: roleAssignment.id,
+          createdAt: now,
+          language,
+        };
+        await setDoc(doc(db, 'users', fbUser.uid), { ...user, createdAt: serverTimestamp() });
+      }
+      setCurrentUser(user);
+      saveToStorage(STORAGE_KEYS.USER, user);
+      addAuditEvent('LOGIN_GOOGLE', 'SYSTEM', user.id, `User signed in with Google: ${user.email}`);
+      return { success: true };
+    } catch (err: any) {
+      const code = err?.code || '';
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        return { success: false, message: 'Google sign-in was cancelled.' };
+      }
+      return { success: false, message: 'Unable to complete Google sign-in. Please try again.' };
+    }
+  };
+
+  const register = async (data: {
+    displayName: string;
+    phone: string;
+    email: string;
+    password: string;
+    role?: UserRoleKey;
+    propertyName?: string;
+  }): Promise<{ success: boolean; message?: string }> => {
+    const cleanEmail = data.email.trim();
+    const cleanName = data.displayName.trim();
+    const cleanPhone = data.phone.trim();
+
+    if (!cleanName) {
+      return { success: false, message: 'Full Legal Name is required.' };
+    }
+    if (!cleanEmail.includes('@')) {
+      return { success: false, message: 'Please provide a valid email address.' };
+    }
+    if (!cleanPhone) {
+      return { success: false, message: 'Uganda phone number is required.' };
+    }
+    if (data.password.length < 8) {
+      return { success: false, message: 'Password must be at least 8 characters long.' };
+    }
+
     // Strict production rule: Only landlords can self-register. Managers & tenants are invited/created by authorized landlords.
     const assignedRole: UserRoleKey = 'LANDLORD';
     try {
-      const firebaseUser = await emailSignUp(data.email, data.password);
+      const firebaseUser = await emailSignUp(cleanEmail, data.password);
       const now = Date.now();
-      const roleAssignment: RoleAssignment = { id: `role-primary-${firebaseUser.uid}`, roleKey: assignedRole, assignedAt: now, permissions: ['ALL'] };
-      const newUser: UserEntity = { id: firebaseUser.uid, phone: data.phone, email: data.email, displayName: data.displayName, primaryRole: assignedRole, accountStatus: 'ACTIVE', authProvider: 'PASSWORD', assignedRoles: [roleAssignment], activeContextId: roleAssignment.id, createdAt: now, language };
+      const roleAssignment: RoleAssignment = {
+        id: `role-primary-${firebaseUser.uid}`,
+        roleKey: assignedRole,
+        assignedAt: now,
+        permissions: ['ALL'],
+      };
+      const newUser: UserEntity = {
+        id: firebaseUser.uid,
+        phone: cleanPhone,
+        email: cleanEmail,
+        displayName: cleanName,
+        primaryRole: assignedRole,
+        accountStatus: 'ACTIVE',
+        authProvider: 'PASSWORD',
+        assignedRoles: [roleAssignment],
+        activeContextId: roleAssignment.id,
+        createdAt: now,
+        language,
+      };
       await setDoc(doc(db, 'users', firebaseUser.uid), { ...newUser, createdAt: serverTimestamp() });
+
+      // If user optionally provided a first property name at registration, create it now for the landlord
+      if (data.propertyName && data.propertyName.trim()) {
+        const propId = `prop-${Date.now()}`;
+        const newProp: PropertyEntity = {
+          id: propId,
+          name: data.propertyName.trim(),
+          location: 'Uganda',
+          totalUnits: 1,
+          occupiedUnits: 0,
+          monthlyRevenue: 0,
+          propertyType: 'Residential',
+          createdAt: now,
+          ownerUserId: firebaseUser.uid,
+          ownerId: firebaseUser.uid,
+          currency: 'UGX',
+          syncStatus: 'SYNCED',
+        };
+        setProperties((prev) => [newProp, ...prev]);
+        try {
+          await setDoc(doc(db, 'properties', propId), newProp);
+        } catch (e) {
+          console.warn('Property sync deferred:', e);
+        }
+      }
+
       setCurrentUser(newUser);
       saveToStorage(STORAGE_KEYS.USER, newUser);
-      // Property creation happens after the authenticated profile is established, through the landlord workflow.
-      return true;
-    } catch {
-      return false;
+      addAuditEvent('REGISTER', 'SYSTEM', newUser.id, `Landlord registered account: ${newUser.email}`);
+      return { success: true };
+    } catch (err: any) {
+      const code = err?.code || '';
+      let msg = 'Registration failed. Please verify your details.';
+      if (code === 'auth/email-already-in-use') {
+        msg = 'An account with this email address already exists. Please sign in instead.';
+      } else if (code === 'auth/invalid-email') {
+        msg = 'Invalid email address format.';
+      } else if (code === 'auth/weak-password') {
+        msg = 'Password is too weak. Please use at least 8 characters.';
+      }
+      return { success: false, message: msg };
     }
   };
 
-  const logout = () => {
-    void firebaseLogout();
+  const sendPasswordReset = async (email: string): Promise<{ success: boolean; message: string }> => {
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      return { success: false, message: 'Please enter a valid email address.' };
+    }
+    try {
+      await requestPasswordReset(cleanEmail);
+      return {
+        success: true,
+        message: 'If an account exists for this email address, password reset instructions have been sent.',
+      };
+    } catch {
+      // Do not expose raw errors or reveal account non-existence for security
+      return {
+        success: true,
+        message: 'If an account exists for this email address, password reset instructions have been sent.',
+      };
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await firebaseLogout();
+    } catch (e) {
+      console.error('Logout error:', e);
+    }
     setCurrentUser(null);
     localStorage.removeItem(STORAGE_KEYS.USER);
   };
@@ -965,7 +1199,9 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         syncMessage,
         triggerSync,
         login,
+        loginWithGoogle,
         register,
+        sendPasswordReset,
         logout,
         switchWorkspace,
         switchContext,

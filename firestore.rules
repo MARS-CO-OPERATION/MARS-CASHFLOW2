@@ -87,7 +87,13 @@ service cloud.firestore {
         data.accountStatus in ['ACTIVE', 'INACTIVE', 'SUSPENDED'] &&
         (!('email' in data) || (data.email is string && data.email.size() <= 150)) &&
         (!('phone' in data) || (data.phone is string && data.phone.size() <= 32)) &&
+        (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 32)) &&
         (!('assignedRoles' in data) || data.assignedRoles is list) &&
+        (!('activeContextId' in data) || (data.activeContextId is string && data.activeContextId.size() <= 128)) &&
+        (!('authProvider' in data) || data.authProvider in ['GOOGLE', 'PASSWORD', 'PHONE_PIN', 'ANONYMOUS']) &&
+        (!('organizationId' in data) || (data.organizationId is string && data.organizationId.size() <= 128)) &&
+        (!('language' in data) || data.language in ['en', 'lg', 'sw']) &&
+        (!('pinHash' in data) || (data.pinHash is string && data.pinHash.size() <= 128)) &&
         (!('isDemo' in data) || data.isDemo is bool);
     }
 
@@ -207,10 +213,18 @@ service cloud.firestore {
       // Only Landlords can self-register. Managers and Tenants are provisioned by Landlords.
       allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming()) && (incoming().primaryRole == 'LANDLORD' || isLandlord());
       allow update: if isSignedIn() && isValidUser(incoming()) && (
-        (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'phoneNumber'])) ||
-        (isLandlord() && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'phoneNumber', 'primaryRole', 'accountStatus', 'organizationId']))
+        (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'phoneNumber', 'displayName', 'phone', 'language', 'activeContextId', 'updatedAt', 'pinHash', 'assignedRoles'])) ||
+        (isLandlord() && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'phoneNumber', 'displayName', 'phone', 'language', 'activeContextId', 'updatedAt', 'pinHash', 'assignedRoles', 'primaryRole', 'accountStatus', 'organizationId']))
       );
       allow delete: if false; // Strict soft-deactivation only
+    }
+
+    match /role_assignments/{assignmentId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isLandlord() || isManager());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isLandlord() || isManager());
+      allow create: if isSignedIn() && (request.auth.uid == incoming().userId || isLandlord());
+      allow update: if isSignedIn() && (isLandlord() || request.auth.uid == existing().userId);
+      allow delete: if isSignedIn() && isLandlord();
     }
 
     // =========================================================================
