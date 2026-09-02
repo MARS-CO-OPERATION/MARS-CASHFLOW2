@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useMars } from '../context/MarsContext';
 import {
-  googleSignIn,
+  googleWorkspaceSignIn,
   googleLogout,
   getCachedAccessToken,
 } from '../services/firebase';
@@ -156,7 +156,7 @@ export const WorkspaceHubScreen: React.FC = () => {
     setIsLoading(true);
     setStatusMessage(null);
     try {
-      await googleSignIn();
+      await googleWorkspaceSignIn();
       setIsSignedIn(true);
       setStatusMessage({ type: 'success', text: 'Connected to Google Workspace successfully.' });
       loadTabData(activeTab);
