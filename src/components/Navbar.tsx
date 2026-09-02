@@ -256,15 +256,17 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, onNavigate }) => {
             <HelpCircle className="w-4 h-4" />
           </button>
 
-          {/* Corporate Platform HQ Entrance */}
-          <button
-            onClick={() => onNavigate('platform_hq')}
-            className="hidden xl:flex items-center gap-1.5 px-2.5 py-1.5 bg-[#101915] hover:bg-[#17231E] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-            title="MARS Corporation Platform HQ Control Plane"
-          >
-            <span className="text-xs text-[#62E3B6]">🏛️</span>
-            <span>Platform HQ</span>
-          </button>
+          {/* Corporate Platform HQ Entrance — visible only to authorized platform personnel */}
+          {currentUser?.platformRole && (
+            <button
+              onClick={() => onNavigate('platform_hq')}
+              className="hidden xl:flex items-center gap-1.5 px-2.5 py-1.5 bg-[#101915] hover:bg-[#17231E] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+              title="MARS Corporation Platform HQ Control Plane"
+            >
+              <span className="text-xs text-[#62E3B6]">🏛️</span>
+              <span>Platform HQ</span>
+            </button>
+          )}
 
           {/* User Profile Pill & Sign Out */}
           {currentUser ? (

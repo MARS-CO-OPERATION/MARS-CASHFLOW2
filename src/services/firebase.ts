@@ -25,8 +25,13 @@ export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// Configure Google Auth Provider with full Workspace scopes
+// Keep app authentication separate from Google Workspace authorization.
+// Requesting Workspace scopes during account sign-in can trigger a second consent
+// flow and makes the Firebase popup operation prone to cancellation/race errors.
 export const googleAuthProvider = new GoogleAuthProvider();
+googleAuthProvider.setCustomParameters({ prompt: 'select_account' });
+
+export const workspaceAuthProvider = new GoogleAuthProvider();
 
 export const WORKSPACE_SCOPES = [
   'https://www.googleapis.com/auth/drive',
@@ -58,7 +63,7 @@ export const WORKSPACE_SCOPES = [
 ];
 
 WORKSPACE_SCOPES.forEach((scope) => {
-  googleAuthProvider.addScope(scope);
+  workspaceAuthProvider.addScope(scope);
 });
 
 // Cache the access token in memory (never localStorage)
@@ -86,20 +91,29 @@ export const initAuth = (
   });
 };
 
-export const googleSignIn = async (): Promise<{ user: User; accessToken: string }> => {
+const signInWithGoogleProvider = async (provider: GoogleAuthProvider): Promise<{ user: User; accessToken: string }> => {
+  if (isSigningIn) {
+    const error = new Error('A Google sign-in request is already in progress.');
+    error.name = 'auth/cancelled-popup-request';
+    throw error;
+  }
+
+  isSigningIn = true;
   try {
-    isSigningIn = true;
-    const result = await signInWithPopup(auth, googleAuthProvider);
+    const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     cachedAccessToken = credential?.accessToken || '';
     return { user: result.user, accessToken: cachedAccessToken };
-  } catch (error: any) {
-    console.error('Google Sign In Error:', error);
-    throw error;
   } finally {
     isSigningIn = false;
   }
 };
+
+export const googleSignIn = async (): Promise<{ user: User; accessToken: string }> =>
+  signInWithGoogleProvider(googleAuthProvider);
+
+export const googleWorkspaceSignIn = async (): Promise<{ user: User; accessToken: string }> =>
+  signInWithGoogleProvider(workspaceAuthProvider);
 
 export const emailSignIn = async (email: string, password: string): Promise<User> => {
   const result = await signInWithEmailAndPassword(auth, email.trim(), password);

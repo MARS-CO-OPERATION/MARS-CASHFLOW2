@@ -222,9 +222,9 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [platformUser, setPlatformUser] = useState<PlatformUserEntity | null>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.PLATFORM_USER);
-      return saved ? JSON.parse(saved) : DEFAULT_FOUNDER_USER;
+      return saved ? JSON.parse(saved) : null;
     } catch {
-      return DEFAULT_FOUNDER_USER;
+      return null;
     }
   });
 
