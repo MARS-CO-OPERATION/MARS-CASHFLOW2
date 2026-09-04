@@ -67,6 +67,7 @@ export const STORAGE_KEYS = {
   MANAGERS: 'mars_managers_v2',
   ACTIVE_CONTEXT: 'mars_active_context_v2',
   LANGUAGE: 'mars_language_v2',
+  THEME: 'mars_theme_mode',
 };
 
 // Safe Local Storage Helpers

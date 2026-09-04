@@ -12,7 +12,9 @@ import {
   BarChart3,
   Receipt,
   FileSpreadsheet,
-  AlertTriangle
+  AlertTriangle,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { USER_ROLES, UserRoleKey } from '../types';
 
@@ -31,7 +33,9 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, onNavigate }) => {
     triggerSync,
     logout,
     switchWorkspace,
-    tenants
+    tenants,
+    isDarkMode,
+    toggleTheme,
   } = useMars();
 
   const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
@@ -245,6 +249,41 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, onNavigate }) => {
             <RefreshCw
               className={`w-4 h-4 ${syncStatus === 'SYNCING' ? 'animate-spin text-amber-500' : ''}`}
             />
+          </button>
+
+          {/* Global Dark Mode Theme Toggle (Night-Time Property Management) */}
+          <button
+            id="theme-toggle-navbar"
+            onClick={toggleTheme}
+            role="switch"
+            aria-checked={isDarkMode}
+            aria-label={isDarkMode ? 'Switch to Day mode' : 'Switch to Night mode'}
+            title={
+              isDarkMode
+                ? 'Switch to Day Mode (Light Theme)'
+                : 'Switch to Night Mode (High-contrast viewing for night property management)'
+            }
+            className={`h-9 px-2.5 flex items-center gap-1.5 rounded-xl border transition-all cursor-pointer select-none ${
+              isDarkMode
+                ? 'bg-[#162B21] hover:bg-[#1E3B2E] border-[#10E3A0]/50 text-[#10E3A0] shadow-xs'
+                : 'bg-white hover:bg-gray-50 border-[#DFE8E3] text-[#17231E] shadow-xs'
+            }`}
+          >
+            {isDarkMode ? (
+              <>
+                <Sun className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="text-xs font-bold text-gray-200">
+                  Night
+                </span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-4 h-4 text-[#65766F] hover:text-[#17231E] shrink-0 transition-colors" />
+                <span className="text-xs font-bold text-[#65766F]">
+                  Day
+                </span>
+              </>
+            )}
           </button>
 
           {/* Quick FAQ / Guide */}

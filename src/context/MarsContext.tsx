@@ -33,6 +33,7 @@ import {
   clearMarsStorage,
 } from '../services/store';
 import { Language, translations, Translations } from '../utils/i18n';
+import { ThemeMode, getInitialTheme, saveThemePreference, applyTheme } from '../services/theme';
 import {
   auth,
   onAuthStateChanged,
@@ -73,6 +74,12 @@ interface MarsContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: Translations;
+
+  // Theme & Night Mode
+  theme: ThemeMode;
+  isDarkMode: boolean;
+  toggleTheme: () => void;
+  setTheme: (mode: ThemeMode) => void;
   
   // Sync
   syncStatus: 'IDLE' | 'SYNCING' | 'SUCCESS' | 'ERROR';
@@ -226,6 +233,26 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const t = useMemo(() => translations[language], [language]);
+
+  // Theme (Night Mode) state with localStorage persistence & CSS variables
+  const [theme, setThemeState] = useState<ThemeMode>(() => getInitialTheme());
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    const next: ThemeMode = theme === 'dark' ? 'light' : 'dark';
+    setThemeState(next);
+    saveThemePreference(next);
+  };
+
+  const setTheme = (mode: ThemeMode) => {
+    setThemeState(mode);
+    saveThemePreference(mode);
+  };
+
+  const isDarkMode = theme === 'dark';
 
   // Active Role & Context
   const authorizedRoles = useMemo(() => {
@@ -1255,6 +1282,10 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         language,
         setLanguage,
         t,
+        theme,
+        isDarkMode,
+        toggleTheme,
+        setTheme,
         syncStatus,
         syncMessage,
         triggerSync,

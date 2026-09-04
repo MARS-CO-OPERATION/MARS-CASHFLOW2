@@ -11,6 +11,22 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('mars_theme_mode');
+          var isDark = saved === 'dark' || (!saved && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.documentElement.style.setProperty('--mars-bg', '#0B120E');
+            document.documentElement.style.setProperty('--mars-ink', '#F2F7F4');
+            document.documentElement.style.setProperty('--mars-card', '#131F19');
+            document.documentElement.style.setProperty('--mars-green', '#10E3A0');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body class="bg-[#F5F8F6] text-[#17231E] antialiased selection:bg-[#0AB77F] selection:text-white min-h-screen">
     <div id="root"></div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useMars } from '../context/MarsContext';
 import {
   LayoutDashboard,
   Building,
@@ -14,6 +15,8 @@ interface BottomNavProps {
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({ currentRoute, onNavigate }) => {
+  const { isDarkMode } = useMars();
+
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'property_map', label: 'Map', icon: MapPin },
@@ -34,13 +37,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentRoute, onNavigate }
               onClick={() => onNavigate(item.id)}
               className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all cursor-pointer ${
                 isActive
-                  ? 'text-[#0AB77F] font-bold'
-                  : 'text-[#65766F] hover:text-[#17231E]'
+                  ? isDarkMode ? 'text-[#10E3A0] font-bold' : 'text-[#0AB77F] font-bold'
+                  : isDarkMode ? 'text-[#A3B8AD] hover:text-[#F2F7F4]' : 'text-[#65766F] hover:text-[#17231E]'
               }`}
             >
               <div
                 className={`p-1 rounded-lg ${
-                  isActive ? 'bg-[#E2F8EF]' : 'bg-transparent'
+                  isActive ? (isDarkMode ? 'bg-[#162B21]' : 'bg-[#E2F8EF]') : 'bg-transparent'
                 }`}
               >
                 <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5px]' : 'stroke-2'}`} />

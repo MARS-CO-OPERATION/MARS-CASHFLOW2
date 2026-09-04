@@ -3,21 +3,65 @@
 @layer base {
   :root {
     --mars-green: #0AB77F;
+    --mars-green-hover: #07885E;
     --mars-dark: #101915;
     --mars-ink: #17231E;
     --mars-muted: #65766F;
     --mars-bg: #F5F8F6;
     --mars-card: #FFFFFF;
+    --mars-card-border: #E2E8F0;
+    --mars-border-subtle: #DFE8E3;
     --mars-accent: #62E3B6;
     --mars-red: #D93838;
     --mars-yellow: #F59E0B;
     --mars-surface-light: #E2F8EF;
+    --mars-surface-hover: #D3F3E6;
+    --mars-nav-bg: rgba(245, 248, 246, 0.95);
+    --mars-input-bg: #FFFFFF;
+    --mars-input-border: #DFE8E3;
+    --mars-dropdown-bg: #FFFFFF;
+    --mars-highlight: #F9FBFA;
+    --mars-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  }
+
+  :root.dark,
+  [data-theme="dark"] {
+    --mars-green: #10E3A0;
+    --mars-green-hover: #0CB881;
+    --mars-dark: #070B09;
+    --mars-ink: #F2F7F4;
+    --mars-muted: #A3B8AD;
+    --mars-bg: #0B120E;
+    --mars-card: #131F19;
+    --mars-card-border: #1E3328;
+    --mars-border-subtle: #233D30;
+    --mars-accent: #62E3B6;
+    --mars-red: #F87171;
+    --mars-yellow: #FBBF24;
+    --mars-surface-light: #162B21;
+    --mars-surface-hover: #1E3B2E;
+    --mars-nav-bg: rgba(11, 18, 14, 0.95);
+    --mars-input-bg: #101A15;
+    --mars-input-border: #233D30;
+    --mars-dropdown-bg: #131F19;
+    --mars-highlight: #17261F;
+    --mars-shadow: 0 4px 14px 0 rgba(0, 0, 0, 0.45);
+  }
+
+  html {
+    color-scheme: light;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  html.dark {
+    color-scheme: dark;
   }
 
   body {
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    background-color: #F5F8F6;
-    color: #17231E;
+    background-color: var(--mars-bg);
+    color: var(--mars-ink);
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -25,7 +69,200 @@
   }
 }
 
-/* Custom scrollbar for dense table and card lists */
+/* ==========================================================================
+   High-Contrast Night-Time Property Management Theme Overrides
+   ========================================================================== */
+
+html.dark body {
+  background-color: var(--mars-bg) !important;
+  color: var(--mars-ink) !important;
+}
+
+html.dark .bg-\[\#F5F8F6\],
+html.dark .bg-\[\#F9FBFA\] {
+  background-color: var(--mars-bg) !important;
+}
+
+html.dark .bg-white {
+  background-color: var(--mars-card) !important;
+  color: var(--mars-ink);
+}
+
+html.dark .bg-white\/95 {
+  background-color: var(--mars-nav-bg) !important;
+}
+
+html.dark .bg-\[\#F5F8F6\]\/95 {
+  background-color: var(--mars-nav-bg) !important;
+}
+
+html.dark .bg-\[\#E2F8EF\],
+html.dark .bg-\[\#E6EFEA\],
+html.dark .bg-\[\#E8F1EC\],
+html.dark .bg-\[\#EBF7F0\] {
+  background-color: var(--mars-surface-light) !important;
+}
+
+html.dark .text-\[\#17231E\],
+html.dark .text-\[\#101915\],
+html.dark .text-gray-900,
+html.dark .text-gray-800 {
+  color: var(--mars-ink) !important;
+}
+
+html.dark .text-\[\#65766F\],
+html.dark .text-\[\#4A5D53\],
+html.dark .text-gray-600,
+html.dark .text-gray-500 {
+  color: var(--mars-muted) !important;
+}
+
+html.dark .text-\[\#0D3B2E\] {
+  color: #A3ECD3 !important;
+}
+
+html.dark .border-\[\#DFE8E3\],
+html.dark .border-\[\#E2E8F0\],
+html.dark .border-\[\#CDE1D7\],
+html.dark .border-gray-100,
+html.dark .border-gray-200,
+html.dark .border-gray-300 {
+  border-color: var(--mars-card-border) !important;
+}
+
+html.dark .divide-\[\#DFE8E3\] > * + *,
+html.dark .divide-gray-100 > * + *,
+html.dark .divide-gray-200 > * + * {
+  border-color: var(--mars-card-border) !important;
+}
+
+/* Form Controls & Inputs */
+html.dark input:not([type="checkbox"]):not([type="radio"]),
+html.dark select,
+html.dark textarea {
+  background-color: var(--mars-input-bg) !important;
+  color: var(--mars-ink) !important;
+  border-color: var(--mars-input-border) !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #6C8477 !important;
+}
+
+/* Interactive States */
+html.dark .hover\:bg-gray-50:hover,
+html.dark .hover\:bg-\[\#F5F8F6\]:hover {
+  background-color: var(--mars-highlight) !important;
+}
+
+html.dark .hover\:bg-\[\#E2F8EF\]:hover {
+  background-color: var(--mars-surface-hover) !important;
+}
+
+html.dark .shadow-xs,
+html.dark .shadow-sm,
+html.dark .shadow-md,
+html.dark .shadow-lg,
+html.dark .shadow-xl {
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--mars-card-border) !important;
+}
+
+/* Status Badges in Night Mode */
+html.dark .bg-emerald-50,
+html.dark .bg-emerald-100 {
+  background-color: #0E2E20 !important;
+  color: #34D399 !important;
+}
+html.dark .text-emerald-700,
+html.dark .text-emerald-800 {
+  color: #34D399 !important;
+}
+html.dark .border-emerald-200,
+html.dark .border-emerald-300 {
+  border-color: #1A543B !important;
+}
+
+html.dark .bg-rose-50,
+html.dark .bg-red-50 {
+  background-color: #331414 !important;
+  color: #F87171 !important;
+}
+html.dark .text-rose-700,
+html.dark .text-red-700,
+html.dark .text-red-800 {
+  color: #F87171 !important;
+}
+html.dark .border-rose-200,
+html.dark .border-red-200 {
+  border-color: #5C2323 !important;
+}
+
+html.dark .bg-amber-50,
+html.dark .bg-yellow-50 {
+  background-color: #302107 !important;
+  color: #FBBF24 !important;
+}
+html.dark .text-amber-700,
+html.dark .text-amber-800 {
+  color: #FBBF24 !important;
+}
+html.dark .border-amber-200,
+html.dark .border-amber-300 {
+  border-color: #5C4113 !important;
+}
+
+html.dark .bg-blue-50,
+html.dark .bg-sky-50 {
+  background-color: #0D2338 !important;
+  color: #60A5FA !important;
+}
+html.dark .text-blue-700,
+html.dark .text-sky-700 {
+  color: #60A5FA !important;
+}
+html.dark .border-blue-200,
+html.dark .border-sky-200 {
+  border-color: #1B456C !important;
+}
+
+/* Tables and Financial Ledgers */
+html.dark table thead th {
+  background-color: #0E1A14 !important;
+  color: #F2F7F4 !important;
+  border-color: var(--mars-card-border) !important;
+}
+
+html.dark table tbody tr:hover td {
+  background-color: #17261F !important;
+}
+
+html.dark table td {
+  border-color: var(--mars-card-border) !important;
+}
+
+/* Dialog / Modal overlays */
+html.dark .bg-black\/50,
+html.dark .bg-black\/40 {
+  background-color: rgba(0, 0, 0, 0.8) !important;
+}
+
+/* Charts Night Mode Adaptations */
+html.dark .recharts-cartesian-grid-line {
+  stroke: var(--mars-card-border) !important;
+}
+
+html.dark .recharts-text {
+  fill: var(--mars-muted) !important;
+}
+
+html.dark .recharts-default-tooltip {
+  background-color: #131F19 !important;
+  border-color: var(--mars-card-border) !important;
+  color: #F2F7F4 !important;
+}
+
+/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -42,6 +279,18 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #0AB77F;
+}
+
+html.dark ::-webkit-scrollbar-track {
+  background: #0B120E;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #1E3328;
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #10E3A0;
 }
 
 /* Print utilities for official receipt and financial statements */
