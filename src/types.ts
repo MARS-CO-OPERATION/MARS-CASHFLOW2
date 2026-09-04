@@ -393,6 +393,7 @@ export interface TenantEntity {
   unitId?: string;
   name: string;
   phone: string;
+  email?: string;
   unitName: string;
   propertyName: string;
   monthlyRent: number;

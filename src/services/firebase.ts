@@ -18,12 +18,132 @@ import {
   getDocs,
   onSnapshot,
 } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
+import defaultAppletConfig from '../../firebase-applet-config.json';
+
+export interface FirebaseAppConfig {
+  apiKey: string;
+  authDomain: string;
+  projectId: string;
+  storageBucket?: string;
+  messagingSenderId?: string;
+  appId: string;
+  measurementId?: string;
+}
+
+// Hierarchical configuration: Environment variables take top precedence (essential for Vercel/production),
+// falling back to firebase-applet-config.json for local/container defaults.
+export const getActiveFirebaseConfig = (): FirebaseAppConfig => {
+  const env = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : ({} as Record<string, string>);
+
+  const envApiKey = env.VITE_FIREBASE_API_KEY;
+  const envProjectId = env.VITE_FIREBASE_PROJECT_ID;
+
+  if (envApiKey && envProjectId) {
+    return {
+      apiKey: envApiKey,
+      authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || `${envProjectId}.firebaseapp.com`,
+      projectId: envProjectId,
+      storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || `${envProjectId}.firebasestorage.app`,
+      messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
+      appId: env.VITE_FIREBASE_APP_ID || '',
+      measurementId: env.VITE_FIREBASE_MEASUREMENT_ID || '',
+    };
+  }
+
+  const fallback = defaultAppletConfig as Partial<FirebaseAppConfig>;
+  return {
+    apiKey: fallback.apiKey || '',
+    authDomain: fallback.authDomain || '',
+    projectId: fallback.projectId || '',
+    storageBucket: fallback.storageBucket || '',
+    messagingSenderId: fallback.messagingSenderId || '',
+    appId: fallback.appId || '',
+    measurementId: fallback.measurementId || '',
+  };
+};
+
+export const getFirebaseConfigStatus = () => {
+  const config = getActiveFirebaseConfig();
+  const missing: string[] = [];
+  if (!config.apiKey) missing.push('VITE_FIREBASE_API_KEY');
+  if (!config.authDomain) missing.push('VITE_FIREBASE_AUTH_DOMAIN');
+  if (!config.projectId) missing.push('VITE_FIREBASE_PROJECT_ID');
+  if (!config.appId) missing.push('VITE_FIREBASE_APP_ID');
+
+  return {
+    isConfigured: missing.length === 0,
+    projectId: config.projectId,
+    authDomain: config.authDomain,
+    missingKeys: missing,
+  };
+};
+
+const activeConfig = getActiveFirebaseConfig();
 
 // Initialize Firebase App singleton
-export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+export const app = !getApps().length ? initializeApp(activeConfig) : getApp();
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// Map Firebase error codes to secure, human-actionable messages without exposing internals
+export const getAuthErrorMessage = (
+  err: any,
+  flow: 'login' | 'register' | 'google' | 'reset' = 'login'
+): string => {
+  const code = err?.code || '';
+  const rawMsg = err?.message || '';
+
+  switch (code) {
+    case 'auth/operation-not-allowed':
+      if (flow === 'google') {
+        return 'Google Sign-In is not enabled for this project. Please enable Google in Firebase Console > Authentication > Sign-in method.';
+      }
+      return 'Email/Password registration is not enabled in this Firebase project. Please enable Email/Password in Firebase Console > Authentication > Sign-in method.';
+
+    case 'auth/unauthorized-domain': {
+      const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'your deployment domain';
+      return `Domain "${currentHost}" is not authorized for OAuth sign-in. Add this domain in Firebase Console > Authentication > Settings > Authorized domains.`;
+    }
+
+    case 'auth/email-already-in-use':
+      return 'An account with this email address already exists. Please sign in instead or reset your password.';
+
+    case 'auth/invalid-email':
+      return 'The email address format is invalid. Please enter a valid email address.';
+
+    case 'auth/weak-password':
+      return 'Password is too weak. Please use at least 8 characters including letters and numbers.';
+
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'Invalid email or password. Please verify your credentials and try again.';
+
+    case 'auth/too-many-requests':
+      return 'Access temporarily locked due to multiple failed login attempts. Please wait a few minutes or reset your password.';
+
+    case 'auth/network-request-failed':
+      return 'Network connection issue. Please check your internet connection.';
+
+    case 'auth/popup-closed-by-user':
+    case 'auth/cancelled-popup-request':
+      return 'Google sign-in was closed before completion.';
+
+    case 'auth/popup-blocked':
+      return 'The Google sign-in window was blocked by your browser. Please allow popups for this site.';
+
+    case 'auth/account-exists-with-different-credential':
+      return 'An account already exists with the same email using a different sign-in method.';
+
+    default:
+      if (rawMsg && !rawMsg.includes('API key') && !rawMsg.includes('token') && !rawMsg.includes('secret')) {
+        return rawMsg;
+      }
+      return flow === 'register'
+        ? 'Registration could not be completed. Please check your information and try again.'
+        : 'Authentication failed. Please verify your credentials and try again.';
+  }
+};
 
 // Keep app authentication separate from Google Workspace authorization.
 // Requesting Workspace scopes during account sign-in can trigger a second consent

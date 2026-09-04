@@ -52,6 +52,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  const navigateForRole = (role?: string) => {
+    if (role === 'TENANT') {
+      onNavigate('tenant');
+    } else if (role === 'MANAGER') {
+      onNavigate('caretaker');
+    } else {
+      onNavigate('landlord');
+    }
+  };
+
   // 1. Google Sign-In
   const handleGoogleSignIn = async () => {
     setErrorMessage(null);
@@ -60,7 +70,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
     try {
       const res = await loginWithGoogle();
       if (res.success) {
-        onNavigate('landlord');
+        navigateForRole(res.role);
       } else if (res.message) {
         setErrorMessage(res.message);
       }
@@ -91,7 +101,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
     try {
       const res = await login(cleanEmail, password);
       if (res.success) {
-        onNavigate('landlord');
+        navigateForRole(res.role);
       } else {
         setErrorMessage(res.message || 'Invalid email or password. Please check your credentials.');
       }
@@ -133,7 +143,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
       return;
     }
 
-    setLoadingState('Creating your Landlord account...');
+    setLoadingState('Creating your account...');
     try {
       const res = await register({
         displayName: cleanName,
@@ -145,7 +155,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
       });
 
       if (res.success) {
-        onNavigate('landlord');
+        navigateForRole(res.role);
       } else {
         setErrorMessage(res.message || 'Registration could not be completed. Please check your details.');
       }
@@ -560,20 +570,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
           )}
         </div>
 
-        {/* Security badge & Corporate Portal */}
+        {/* Security badge */}
         <div className="text-center space-y-2">
           <div className="text-[11px] text-[#9FB2A9] flex items-center justify-center gap-2">
             <ShieldCheck className="w-4 h-4 text-[#0AB77F]" />
             <span>Secured with Uganda Real Estate Ledger Integrity & Firebase Auth</span>
-          </div>
-
-          <div className="pt-2 border-t border-[#DFE8E3]/60">
-            <button
-              onClick={() => onNavigate('platform_hq')}
-              className="text-[11px] font-extrabold text-[#17231E] hover:text-[#0AB77F] inline-flex items-center gap-1 transition-colors cursor-pointer"
-            >
-              <span>🏛️ MARS Corporation Executive or Partner? Access Platform HQ →</span>
-            </button>
           </div>
         </div>
       </div>

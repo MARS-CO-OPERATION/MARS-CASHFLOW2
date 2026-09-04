@@ -235,8 +235,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isSignedIn() && (request.auth.uid == userId || isLandlord() || isManager());
       allow list: if isSignedIn() && (isLandlord() || isManager());
-      // Only Landlords can self-register. Managers and Tenants are provisioned by Landlords.
-      allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming()) && (incoming().primaryRole == 'LANDLORD' || isLandlord());
+      // Users can only create their own profile matching approved MARS roles (no admin/founder escalation)
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming()) && (incoming().primaryRole in ['LANDLORD', 'MANAGER', 'TENANT']);
       allow update: if isSignedIn() && isValidUser(incoming()) && (
         (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'phoneNumber', 'displayName', 'phone', 'language', 'activeContextId', 'updatedAt', 'pinHash', 'assignedRoles'])) ||
         (isLandlord() && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'phoneNumber', 'displayName', 'phone', 'language', 'activeContextId', 'updatedAt', 'pinHash', 'assignedRoles', 'primaryRole', 'accountStatus', 'organizationId']))

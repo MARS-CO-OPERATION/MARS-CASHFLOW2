@@ -41,6 +41,7 @@ import {
   googleSignIn,
   requestPasswordReset,
   logout as firebaseLogout,
+  getAuthErrorMessage,
 } from '../services/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -79,9 +80,9 @@ interface MarsContextType {
   triggerSync: (callback?: (status: boolean, message: string) => void) => void;
   
   // Auth & Identity
-  login: (identifier: string, password: string) => Promise<{ success: boolean; message?: string }>;
-  loginWithGoogle: () => Promise<{ success: boolean; message?: string }>;
-  register: (data: { displayName: string; phone: string; email: string; password: string; role?: UserRoleKey; propertyName?: string }) => Promise<{ success: boolean; message?: string }>;
+  login: (identifier: string, password: string) => Promise<{ success: boolean; message?: string; role?: UserRoleKey }>;
+  loginWithGoogle: () => Promise<{ success: boolean; message?: string; role?: UserRoleKey }>;
+  register: (data: { displayName: string; phone: string; email: string; password: string; role?: UserRoleKey; propertyName?: string }) => Promise<{ success: boolean; message?: string; role?: UserRoleKey }>;
   sendPasswordReset: (email: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
   switchWorkspace: (roleKey: UserRoleKey, workspaceTitle?: string) => void;
@@ -209,58 +210,6 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadFromStorage<UserEntity | null>(STORAGE_KEYS.USER, null)
   );
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: import('firebase/auth').User | null) => {
-      if (!firebaseUser) {
-        setCurrentUser(null);
-        localStorage.removeItem(STORAGE_KEYS.USER);
-        return;
-      }
-      try {
-        const profileSnap = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (profileSnap.exists()) {
-          const data = profileSnap.data() as UserEntity;
-          const userObj: UserEntity = {
-            ...data,
-            id: firebaseUser.uid,
-            email: firebaseUser.email || data.email,
-            displayName: data.displayName || firebaseUser.displayName || 'MARS User',
-          };
-          setCurrentUser(userObj);
-          saveToStorage(STORAGE_KEYS.USER, userObj);
-        } else {
-          // If profile does not exist yet (e.g. initial Google login before explicit setDoc), create it as LANDLORD
-          const now = Date.now();
-          const roleAssignment: RoleAssignment = {
-            id: `role-primary-${firebaseUser.uid}`,
-            roleKey: 'LANDLORD',
-            assignedAt: now,
-            permissions: ['ALL'],
-          };
-          const newUser: UserEntity = {
-            id: firebaseUser.uid,
-            phone: firebaseUser.phoneNumber || '',
-            email: firebaseUser.email || '',
-            displayName: firebaseUser.displayName || 'MARS Landlord',
-            primaryRole: 'LANDLORD',
-            accountStatus: 'ACTIVE',
-            authProvider: firebaseUser.providerData.some((p) => p.providerId === 'google.com') ? 'GOOGLE' : 'PASSWORD',
-            assignedRoles: [roleAssignment],
-            activeContextId: roleAssignment.id,
-            createdAt: now,
-            language: 'en',
-          };
-          await setDoc(doc(db, 'users', firebaseUser.uid), { ...newUser, createdAt: serverTimestamp() });
-          setCurrentUser(newUser);
-          saveToStorage(STORAGE_KEYS.USER, newUser);
-        }
-      } catch (err) {
-        console.warn('Profile fetch error on auth state change:', err);
-      }
-    });
-    return unsubscribe;
-  }, []);
-
   // Language state
   const [language, setLanguageState] = useState<Language>(() => {
     return loadFromStorage<Language>(STORAGE_KEYS.LANGUAGE, 'en');
@@ -328,6 +277,81 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [managers, setManagers] = useState<ManagerEntity[]>(() =>
     loadFromStorage<ManagerEntity[]>(STORAGE_KEYS.MANAGERS, [])
   );
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: import('firebase/auth').User | null) => {
+      if (!firebaseUser) {
+        setCurrentUser(null);
+        localStorage.removeItem(STORAGE_KEYS.USER);
+        return;
+      }
+      try {
+        let userObj: UserEntity | null = null;
+        try {
+          const profileSnap = await getDoc(doc(db, 'users', firebaseUser.uid));
+          if (profileSnap.exists()) {
+            const data = profileSnap.data() as UserEntity;
+            userObj = {
+              ...data,
+              id: firebaseUser.uid,
+              email: firebaseUser.email || data.email,
+              displayName: data.displayName || firebaseUser.displayName || 'MARS User',
+            };
+          }
+        } catch (dbErr) {
+          console.warn('Firestore profile lookup error:', dbErr);
+        }
+
+        if (userObj) {
+          setCurrentUser(userObj);
+          saveToStorage(STORAGE_KEYS.USER, userObj);
+        } else {
+          // Check if already in local storage for this UID
+          const storedUser = loadFromStorage<UserEntity | null>(STORAGE_KEYS.USER, null);
+          if (storedUser && storedUser.id === firebaseUser.uid) {
+            setCurrentUser(storedUser);
+          } else {
+            // Check if user email matches pre-provisioned Tenant or Manager
+            const userEmail = (firebaseUser.email || '').toLowerCase();
+            const matchedTenant = userEmail ? tenants.find((t) => t.email && t.email.toLowerCase() === userEmail) : undefined;
+            const matchedManager = userEmail ? managers.find((m) => m.email && m.email.toLowerCase() === userEmail) : undefined;
+            const resolvedRole: UserRoleKey = matchedTenant ? 'TENANT' : matchedManager ? 'MANAGER' : 'LANDLORD';
+
+            const now = Date.now();
+            const roleAssignment: RoleAssignment = {
+              id: `role-primary-${firebaseUser.uid}`,
+              roleKey: resolvedRole,
+              assignedAt: now,
+              permissions: ['ALL'],
+            };
+            const fallbackUser: UserEntity = {
+              id: firebaseUser.uid,
+              phone: firebaseUser.phoneNumber || matchedTenant?.phone || matchedManager?.phone || '',
+              email: firebaseUser.email || '',
+              displayName: firebaseUser.displayName || matchedTenant?.name || matchedManager?.name || 'MARS User',
+              primaryRole: resolvedRole,
+              accountStatus: 'ACTIVE',
+              authProvider: firebaseUser.providerData.some((p) => p.providerId === 'google.com') ? 'GOOGLE' : 'PASSWORD',
+              assignedRoles: [roleAssignment],
+              activeContextId: roleAssignment.id,
+              createdAt: now,
+              language: 'en',
+            };
+            setCurrentUser(fallbackUser);
+            saveToStorage(STORAGE_KEYS.USER, fallbackUser);
+            try {
+              await setDoc(doc(db, 'users', firebaseUser.uid), { ...fallbackUser, createdAt: serverTimestamp() });
+            } catch (syncErr) {
+              console.warn('Firestore fallback user creation deferred:', syncErr);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Profile fetch error on auth state change:', err);
+      }
+    });
+    return unsubscribe;
+  }, [tenants, managers]);
 
   const [notifications, setNotifications] = useState<NotificationEntity[]>([]);
 
@@ -400,7 +424,7 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (targetRole) switchContext(targetRole.id);
   };
 
-  const login = async (identifier: string, password: string): Promise<{ success: boolean; message?: string }> => {
+  const login = async (identifier: string, password: string): Promise<{ success: boolean; message?: string; role?: UserRoleKey }> => {
     const cleanEmail = identifier.trim();
     if (!cleanEmail.includes('@')) {
       return { success: false, message: 'Please enter a valid email address.' };
@@ -410,25 +434,42 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     try {
       const fbUser = await emailSignIn(cleanEmail, password);
-      const profileSnap = await getDoc(doc(db, 'users', fbUser.uid));
       let user: UserEntity;
-      if (profileSnap.exists()) {
-        const data = profileSnap.data() as UserEntity;
-        user = { ...data, id: fbUser.uid, email: fbUser.email || data.email };
+      let userFromFirestore: UserEntity | null = null;
+      try {
+        const profileSnap = await getDoc(doc(db, 'users', fbUser.uid));
+        if (profileSnap.exists()) {
+          userFromFirestore = profileSnap.data() as UserEntity;
+        }
+      } catch (dbErr) {
+        console.warn('Firestore user fetch deferred/offline:', dbErr);
+      }
+
+      if (userFromFirestore) {
+        user = {
+          ...userFromFirestore,
+          id: fbUser.uid,
+          email: fbUser.email || userFromFirestore.email || cleanEmail,
+        };
       } else {
+        // Resolve role: check if invited tenant or manager
+        const matchedTenant = tenants.find((t) => t.email && t.email.toLowerCase() === cleanEmail.toLowerCase());
+        const matchedManager = managers.find((m) => m.email && m.email.toLowerCase() === cleanEmail.toLowerCase());
+        const resolvedRole: UserRoleKey = matchedTenant ? 'TENANT' : matchedManager ? 'MANAGER' : 'LANDLORD';
+
         const now = Date.now();
         const roleAssignment: RoleAssignment = {
           id: `role-primary-${fbUser.uid}`,
-          roleKey: 'LANDLORD',
+          roleKey: resolvedRole,
           assignedAt: now,
           permissions: ['ALL'],
         };
         user = {
           id: fbUser.uid,
-          phone: fbUser.phoneNumber || '',
+          phone: fbUser.phoneNumber || matchedTenant?.phone || matchedManager?.phone || '',
           email: fbUser.email || cleanEmail,
-          displayName: fbUser.displayName || 'MARS Landlord',
-          primaryRole: 'LANDLORD',
+          displayName: fbUser.displayName || matchedTenant?.name || matchedManager?.name || 'MARS User',
+          primaryRole: resolvedRole,
           accountStatus: 'ACTIVE',
           authProvider: 'PASSWORD',
           assignedRoles: [roleAssignment],
@@ -436,49 +477,64 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAt: now,
           language,
         };
-        await setDoc(doc(db, 'users', fbUser.uid), { ...user, createdAt: serverTimestamp() });
+        try {
+          await setDoc(doc(db, 'users', fbUser.uid), { ...user, createdAt: serverTimestamp() });
+        } catch (dbErr) {
+          console.warn('Firestore setDoc deferred:', dbErr);
+        }
       }
+
       setCurrentUser(user);
       saveToStorage(STORAGE_KEYS.USER, user);
       addAuditEvent('LOGIN', 'SYSTEM', user.id, `User logged in with email: ${user.email}`);
-      return { success: true };
+      return { success: true, role: user.primaryRole };
     } catch (err: any) {
-      const code = err?.code || '';
-      let msg = 'Invalid email or password. Please check your credentials.';
-      if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
-        msg = 'Invalid email or password.';
-      } else if (code === 'auth/too-many-requests') {
-        msg = 'Access temporarily disabled due to many failed login attempts. Please try again in a few minutes.';
-      } else if (code === 'auth/network-request-failed') {
-        msg = 'Network connection issue. Please check your internet connection.';
-      }
+      const msg = getAuthErrorMessage(err, 'login');
       return { success: false, message: msg };
     }
   };
 
-  const loginWithGoogle = async (): Promise<{ success: boolean; message?: string }> => {
+  const loginWithGoogle = async (): Promise<{ success: boolean; message?: string; role?: UserRoleKey }> => {
     try {
       const res = await googleSignIn();
       const fbUser = res.user;
-      const profileSnap = await getDoc(doc(db, 'users', fbUser.uid));
       let user: UserEntity;
-      if (profileSnap.exists()) {
-        const data = profileSnap.data() as UserEntity;
-        user = { ...data, id: fbUser.uid, email: fbUser.email || data.email };
+      let userFromFirestore: UserEntity | null = null;
+      try {
+        const profileSnap = await getDoc(doc(db, 'users', fbUser.uid));
+        if (profileSnap.exists()) {
+          userFromFirestore = profileSnap.data() as UserEntity;
+        }
+      } catch (e) {
+        console.warn('Firestore profile lookup deferred:', e);
+      }
+
+      if (userFromFirestore) {
+        user = {
+          ...userFromFirestore,
+          id: fbUser.uid,
+          email: fbUser.email || userFromFirestore.email || '',
+          displayName: fbUser.displayName || userFromFirestore.displayName || 'MARS User',
+        };
       } else {
+        const cleanEmail = (fbUser.email || '').toLowerCase();
+        const matchedTenant = cleanEmail ? tenants.find((t) => t.email && t.email.toLowerCase() === cleanEmail) : undefined;
+        const matchedManager = cleanEmail ? managers.find((m) => m.email && m.email.toLowerCase() === cleanEmail) : undefined;
+        const resolvedRole: UserRoleKey = matchedTenant ? 'TENANT' : matchedManager ? 'MANAGER' : 'LANDLORD';
+
         const now = Date.now();
         const roleAssignment: RoleAssignment = {
           id: `role-primary-${fbUser.uid}`,
-          roleKey: 'LANDLORD',
+          roleKey: resolvedRole,
           assignedAt: now,
           permissions: ['ALL'],
         };
         user = {
           id: fbUser.uid,
-          phone: fbUser.phoneNumber || '',
+          phone: fbUser.phoneNumber || matchedTenant?.phone || matchedManager?.phone || '',
           email: fbUser.email || '',
-          displayName: fbUser.displayName || 'MARS Landlord',
-          primaryRole: 'LANDLORD',
+          displayName: fbUser.displayName || matchedTenant?.name || matchedManager?.name || 'MARS User',
+          primaryRole: resolvedRole,
           accountStatus: 'ACTIVE',
           authProvider: 'GOOGLE',
           assignedRoles: [roleAssignment],
@@ -486,18 +542,20 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAt: now,
           language,
         };
-        await setDoc(doc(db, 'users', fbUser.uid), { ...user, createdAt: serverTimestamp() });
+        try {
+          await setDoc(doc(db, 'users', fbUser.uid), { ...user, createdAt: serverTimestamp() });
+        } catch (dbErr) {
+          console.warn('Firestore profile sync deferred:', dbErr);
+        }
       }
+
       setCurrentUser(user);
       saveToStorage(STORAGE_KEYS.USER, user);
       addAuditEvent('LOGIN_GOOGLE', 'SYSTEM', user.id, `User signed in with Google: ${user.email}`);
-      return { success: true };
+      return { success: true, role: user.primaryRole };
     } catch (err: any) {
-      const code = err?.code || '';
-      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-        return { success: false, message: 'Google sign-in was cancelled.' };
-      }
-      return { success: false, message: 'Unable to complete Google sign-in. Please try again.' };
+      const msg = getAuthErrorMessage(err, 'google');
+      return { success: false, message: msg };
     }
   };
 
@@ -508,7 +566,7 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     password: string;
     role?: UserRoleKey;
     propertyName?: string;
-  }): Promise<{ success: boolean; message?: string }> => {
+  }): Promise<{ success: boolean; message?: string; role?: UserRoleKey }> => {
     const cleanEmail = data.email.trim();
     const cleanName = data.displayName.trim();
     const cleanPhone = data.phone.trim();
@@ -526,8 +584,13 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, message: 'Password must be at least 8 characters long.' };
     }
 
-    // Strict production rule: Only landlords can self-register. Managers & tenants are invited/created by authorized landlords.
-    const assignedRole: UserRoleKey = 'LANDLORD';
+    // Role resolution with strict escalation defense:
+    // Check if the registering email was pre-provisioned by a landlord as a Manager or Tenant.
+    // If not, default to LANDLORD. Ordinary users cannot register as ADMIN or FOUNDER.
+    const matchedTenant = tenants.find((t) => t.email && t.email.toLowerCase() === cleanEmail.toLowerCase());
+    const matchedManager = managers.find((m) => m.email && m.email.toLowerCase() === cleanEmail.toLowerCase());
+    const assignedRole: UserRoleKey = matchedTenant ? 'TENANT' : matchedManager ? 'MANAGER' : 'LANDLORD';
+
     try {
       const firebaseUser = await emailSignUp(cleanEmail, data.password);
       const now = Date.now();
@@ -550,10 +613,15 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         createdAt: now,
         language,
       };
-      await setDoc(doc(db, 'users', firebaseUser.uid), { ...newUser, createdAt: serverTimestamp() });
 
-      // If user optionally provided a first property name at registration, create it now for the landlord
-      if (data.propertyName && data.propertyName.trim()) {
+      try {
+        await setDoc(doc(db, 'users', firebaseUser.uid), { ...newUser, createdAt: serverTimestamp() });
+      } catch (dbErr) {
+        console.warn('Firestore profile creation deferred:', dbErr);
+      }
+
+      // If user optionally provided a first property name at registration and is a Landlord, create it
+      if (assignedRole === 'LANDLORD' && data.propertyName && data.propertyName.trim()) {
         const propId = `prop-${Date.now()}`;
         const newProp: PropertyEntity = {
           id: propId,
@@ -579,18 +647,10 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setCurrentUser(newUser);
       saveToStorage(STORAGE_KEYS.USER, newUser);
-      addAuditEvent('REGISTER', 'SYSTEM', newUser.id, `Landlord registered account: ${newUser.email}`);
-      return { success: true };
+      addAuditEvent('REGISTER', 'SYSTEM', newUser.id, `${assignedRole} registered account: ${newUser.email}`);
+      return { success: true, role: assignedRole };
     } catch (err: any) {
-      const code = err?.code || '';
-      let msg = 'Registration failed. Please verify your details.';
-      if (code === 'auth/email-already-in-use') {
-        msg = 'An account with this email address already exists. Please sign in instead.';
-      } else if (code === 'auth/invalid-email') {
-        msg = 'Invalid email address format.';
-      } else if (code === 'auth/weak-password') {
-        msg = 'Password is too weak. Please use at least 8 characters.';
-      }
+      const msg = getAuthErrorMessage(err, 'register');
       return { success: false, message: msg };
     }
   };
