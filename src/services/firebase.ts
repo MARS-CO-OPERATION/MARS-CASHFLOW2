@@ -20,6 +20,7 @@ import {
   setDoc,
   getDocs,
   onSnapshot,
+  getDocFromServer,
 } from 'firebase/firestore';
 import defaultAppletConfig from '../../firebase-applet-config.json';
 
@@ -86,7 +87,30 @@ const activeConfig = getActiveFirebaseConfig();
 // Initialize Firebase App singleton
 export const app = !getApps().length ? initializeApp(activeConfig) : getApp();
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+const targetDatabaseId =
+  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_FIREBASE_DATABASE_ID) ||
+  (defaultAppletConfig as any).firestoreDatabaseId ||
+  undefined;
+
+export const db = targetDatabaseId && targetDatabaseId !== '(default)'
+  ? getFirestore(app, targetDatabaseId)
+  : getFirestore(app);
+
+// Test connection to Firestore on initial bootstrap as required by Firebase integration guidelines
+export async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error('Please check your Firebase configuration.');
+    }
+  }
+}
+
+if (typeof window !== 'undefined') {
+  testConnection();
+}
 
 // Map Firebase error codes to secure, human-actionable messages without exposing internals
 export const getAuthErrorMessage = (

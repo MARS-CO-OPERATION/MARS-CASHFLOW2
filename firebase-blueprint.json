@@ -13,6 +13,8 @@
         "accountStatus": { "type": "string", "enum": ["ACTIVE", "INACTIVE", "SUSPENDED"] },
         "organizationId": { "type": "string", "maxLength": 128 },
         "isDemo": { "type": "boolean" },
+        "biometricEnabled": { "type": "boolean" },
+        "biometricCredentials": { "type": "array" },
         "createdAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["id", "email", "displayName", "primaryRole", "accountStatus"]

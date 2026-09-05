@@ -36,7 +36,7 @@ export const PlatformLoginScreen: React.FC<PlatformLoginProps> = ({ onReturnToCa
   const [showInvPassword, setShowInvPassword] = useState(false);
   const [invSuccessMsg, setInvSuccessMsg] = useState<string | null>(null);
 
-  const handleLoginSubmit申 = async (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     if (!email || !password) return;
@@ -143,7 +143,7 @@ export const PlatformLoginScreen: React.FC<PlatformLoginProps> = ({ onReturnToCa
 
         {/* Login Form */}
         {activeTab === 'LOGIN' ? (
-          <form onSubmit={handleLoginSubmit申} className="space-y-4">
+          <form onSubmit={handleLoginSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-[#A1B8AE] mb-1.5">
                 Corporate Email Address

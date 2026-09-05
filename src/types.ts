@@ -195,6 +195,18 @@ export interface RoleAssignment {
 }
 export type RoleAssignmentEntity = RoleAssignment;
 
+export interface BiometricCredentialEntity {
+  id: string; // Base64URL credential ID
+  rawId?: string;
+  userId: string;
+  userEmail: string;
+  displayName: string;
+  deviceLabel: string;
+  transports?: string[];
+  createdAt: number;
+  lastUsedAt?: number;
+}
+
 // CLASS B — CUSTOMER IDENTITY
 export interface UserEntity {
   id: string;
@@ -218,6 +230,8 @@ export interface UserEntity {
   assignedRoles: RoleAssignment[];
   activeContextId?: string;
   language?: 'en' | 'lg';
+  biometricEnabled?: boolean;
+  biometricCredentials?: BiometricCredentialEntity[];
   createdAt: number;
   updatedAt?: number;
 }
@@ -361,6 +375,16 @@ export interface PlatformAuditLogEntity {
   result: 'SUCCESS' | 'FAILURE' | 'DENIED';
 }
 
+export interface ManagerAssignmentRecord {
+  managerId: string;
+  managerName: string;
+  managerPhone?: string;
+  managerEmail?: string;
+  assignedAt: number;
+  unassignedAt?: number;
+  unassignedReason?: string;
+}
+
 export interface PropertyEntity {
   id: string;
   ownerUserId?: string;
@@ -372,8 +396,33 @@ export interface PropertyEntity {
   monthlyRevenue?: number;
   propertyType?: 'Residential' | 'Commercial' | 'Mixed-Use' | 'Student Hostel' | 'Industrial';
   currency?: string;
+  // Mandatory Manager / Caretaker assignment
+  managerId?: string;
+  managerName?: string;
+  managerPhone?: string;
+  managerEmail?: string;
+  managerAssignedAt?: number;
+  managerIds?: string[];
+  caretakerPhone?: string;
+  managementHistory?: ManagerAssignmentRecord[];
   syncStatus?: 'SYNCED' | 'PENDING' | 'FAILED';
   lastSyncedAt?: number;
+  createdAt: number;
+}
+
+export interface ManagerInvitationEntity {
+  id: string;
+  email: string;
+  phone: string;
+  name: string;
+  landlordId: string;
+  landlordName: string;
+  propertyId: string;
+  propertyName: string;
+  token: string;
+  status: 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'REVOKED';
+  permissions?: ManagerPermissions;
+  expiresAt: number;
   createdAt: number;
 }
 

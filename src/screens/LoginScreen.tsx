@@ -15,7 +15,9 @@ import {
   X,
   KeyRound,
   Sparkles,
-  Check
+  Check,
+  Fingerprint,
+  ScanFace
 } from 'lucide-react';
 
 interface LoginScreenProps {
@@ -26,6 +28,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
   const {
     login,
     loginWithGoogle,
+    loginWithBiometrics,
+    isBiometricSupported,
+    isBiometricAvailableOnDevice,
+    enrolledBiometrics,
+    deviceBiometricLabel,
     register,
     sendPasswordReset,
     currentUser,
@@ -83,6 +90,28 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
       onNavigate('caretaker');
     } else {
       onNavigate('landlord');
+    }
+  };
+
+  // 0. Native WebAuthn Biometric Unlock (Fingerprint / Face ID)
+  const handleBiometricUnlock = async () => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setLoadingState('Verifying biometric identity...');
+    try {
+      const res = await loginWithBiometrics();
+      if (res.success) {
+        setSuccessMessage(res.message || 'Biometric authentication verified.');
+        setTimeout(() => {
+          navigateForRole(res.role);
+        }, 300);
+      } else {
+        setErrorMessage(res.message || 'Biometric verification failed.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Biometric verification could not be completed.');
+    } finally {
+      setLoadingState(null);
     }
   };
 
@@ -284,6 +313,63 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
             <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-[#0AB77F] text-xs font-bold flex items-start gap-2.5 animate-in fade-in">
               <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
               <div className="flex-1 leading-snug">{successMessage}</div>
+            </div>
+          )}
+
+          {/* Native WebAuthn Biometric Unlock (Fingerprint / Face ID) */}
+          {isBiometricSupported && enrolledBiometrics.length > 0 && (
+            <div className="p-4 bg-gradient-to-br from-emerald-50/90 via-[#F5F8F6] to-teal-50/70 border-2 border-[#0AB77F]/50 rounded-2xl space-y-3 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-[#0AB77F] text-white flex items-center justify-center shadow-xs">
+                    <Fingerprint className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-black text-[#17231E] flex items-center gap-1.5">
+                      <span>{deviceBiometricLabel}</span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 bg-emerald-100 text-[#07885E] rounded-full">
+                        Enrolled
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-[#65766F] truncate max-w-[200px]">
+                      {enrolledBiometrics[0]?.displayName || enrolledBiometrics[0]?.userEmail}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                id="biometric-quick-unlock-btn"
+                type="button"
+                disabled={!!loadingState}
+                onClick={handleBiometricUnlock}
+                className="w-full min-h-[44px] py-3.5 px-4 bg-[#0AB77F] hover:bg-[#07885E] active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-extrabold shadow-md shadow-emerald-600/25 transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {loadingState === 'Verifying biometric identity...' ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Scanning Sensor...</span>
+                  </>
+                ) : (
+                  <>
+                    <Fingerprint className="w-4 h-4" />
+                    <span>Unlock with Biometrics</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Biometric Capability Notice for Unenrolled Mobile Devices */}
+          {isBiometricSupported && isBiometricAvailableOnDevice && enrolledBiometrics.length === 0 && (
+            <div className="p-3 bg-emerald-50/60 border border-emerald-200/80 rounded-2xl flex items-center gap-2.5 text-xs text-[#17231E]">
+              <div className="w-7 h-7 rounded-lg bg-[#0AB77F]/15 flex items-center justify-center text-[#07885E] shrink-0">
+                <Fingerprint className="w-4 h-4" />
+              </div>
+              <div className="text-[11px] text-[#65766F] leading-tight">
+                <span className="font-bold text-[#17231E]">Biometrics Ready: </span>
+                Sign in once to activate native fingerprint or Face ID unlock for this device.
+              </div>
             </div>
           )}
 

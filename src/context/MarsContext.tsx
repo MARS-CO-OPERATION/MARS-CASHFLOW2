@@ -16,7 +16,17 @@ import {
   MaintenanceStatus,
   MaintenanceUrgency,
   MaintenanceQuotation,
+  BiometricCredentialEntity,
 } from '../types';
+import {
+  isWebAuthnSupported,
+  isPlatformAuthenticatorAvailable,
+  getLocalBiometricCredentials,
+  registerBiometricCredential,
+  authenticateBiometricCredential,
+  removeLocalBiometricCredential,
+  getDeviceBiometricLabel,
+} from '../services/webauthn';
 import {
   INITIAL_PROPERTIES,
   INITIAL_TENANTS,
@@ -94,11 +104,21 @@ interface MarsContextType {
   setRememberMe: (remember: boolean) => void;
   login: (identifier: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; message?: string; role?: UserRoleKey }>;
   loginWithGoogle: (rememberMe?: boolean) => Promise<{ success: boolean; message?: string; role?: UserRoleKey }>;
+  loginWithBiometrics: () => Promise<{ success: boolean; message?: string; role?: UserRoleKey }>;
   register: (data: { displayName: string; phone: string; email: string; password: string; role?: UserRoleKey; propertyName?: string; rememberMe?: boolean }) => Promise<{ success: boolean; message?: string; role?: UserRoleKey }>;
   sendPasswordReset: (email: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
   switchWorkspace: (roleKey: UserRoleKey, workspaceTitle?: string) => void;
   switchContext: (contextId: string) => void;
+
+  // Biometric Authentication (WebAuthn / Passkeys)
+  isBiometricSupported: boolean;
+  isBiometricAvailableOnDevice: boolean;
+  enrolledBiometrics: BiometricCredentialEntity[];
+  deviceBiometricLabel: string;
+  registerBiometric: () => Promise<{ success: boolean; message?: string }>;
+  removeBiometric: (credentialId: string) => Promise<{ success: boolean; message?: string }>;
+  testBiometric: () => Promise<{ success: boolean; message?: string }>;
   
   // Property & Tenant Management
   addProperty: (property: { name: string; location: string; totalUnits: number; propertyType?: PropertyEntity['propertyType'] }) => { success: boolean; propertyId: string };
@@ -328,6 +348,28 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [managers, setManagers] = useState<ManagerEntity[]>(() =>
     loadFromStorage<ManagerEntity[]>(STORAGE_KEYS.MANAGERS, [])
   );
+
+  // Native WebAuthn Biometric State
+  const [isBiometricSupported] = useState<boolean>(() => isWebAuthnSupported());
+  const [isBiometricAvailableOnDevice, setIsBiometricAvailableOnDevice] = useState<boolean>(false);
+  const [enrolledBiometrics, setEnrolledBiometrics] = useState<BiometricCredentialEntity[]>(() =>
+    getLocalBiometricCredentials()
+  );
+  const deviceBiometricLabel = useMemo(() => getDeviceBiometricLabel(), []);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (isBiometricSupported) {
+      isPlatformAuthenticatorAvailable()
+        .then((available) => {
+          if (isMounted) setIsBiometricAvailableOnDevice(available);
+        })
+        .catch(() => {});
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [isBiometricSupported]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: import('firebase/auth').User | null) => {
@@ -634,6 +676,202 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const msg = getAuthErrorMessage(err, 'google');
       return { success: false, message: msg };
     }
+  };
+
+  const loginWithBiometrics = async (): Promise<{ success: boolean; message?: string; role?: UserRoleKey }> => {
+    if (!isBiometricSupported) {
+      return { success: false, message: 'WebAuthn biometric authentication is not supported in this browser.' };
+    }
+
+    const localCreds = getLocalBiometricCredentials();
+    if (localCreds.length === 0) {
+      return {
+        success: false,
+        message: 'No biometric credentials enrolled on this device. Please sign in with your email or password first, then enroll your fingerprint or Face ID in Landlord Settings.',
+      };
+    }
+
+    const authResult = await authenticateBiometricCredential();
+    if (!authResult.success) {
+      return { success: false, message: authResult.error || 'Biometric verification failed.' };
+    }
+
+    const matched = authResult.matchedCredential || localCreds[0];
+    setEnrolledBiometrics(getLocalBiometricCredentials());
+
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem('mars_session_active', 'true');
+    }
+
+    let resolvedUser: UserEntity | null = null;
+    const localSaved = loadFromStorage<UserEntity | null>(STORAGE_KEYS.USER, null);
+    if (
+      localSaved &&
+      (localSaved.id === matched.userId ||
+        (matched.userEmail && localSaved.email && localSaved.email.toLowerCase() === matched.userEmail.toLowerCase()))
+    ) {
+      resolvedUser = localSaved;
+    }
+
+    try {
+      const snap = await getDoc(doc(db, 'users', matched.userId));
+      if (snap.exists()) {
+        resolvedUser = { ...(snap.data() as UserEntity), id: matched.userId };
+      }
+    } catch (err) {
+      console.warn('Firestore fetch during biometric login deferred:', err);
+    }
+
+    if (!resolvedUser) {
+      const matchedTenant = tenants.find((t) => t.email && t.email.toLowerCase() === matched.userEmail.toLowerCase());
+      const matchedManager = managers.find((m) => m.email && m.email.toLowerCase() === matched.userEmail.toLowerCase());
+      const assignedRole: UserRoleKey = matchedTenant ? 'TENANT' : matchedManager ? 'MANAGER' : 'LANDLORD';
+      const now = Date.now();
+      const roleAssignment: RoleAssignment = {
+        id: `role-primary-${matched.userId}`,
+        roleKey: assignedRole,
+        assignedAt: now,
+        permissions: ['ALL'],
+      };
+      resolvedUser = {
+        id: matched.userId,
+        email: matched.userEmail,
+        displayName: matched.displayName || 'MARS User',
+        primaryRole: assignedRole,
+        accountStatus: 'ACTIVE',
+        authProvider: 'PASSWORD',
+        biometricEnabled: true,
+        assignedRoles: [roleAssignment],
+        activeContextId: roleAssignment.id,
+        createdAt: matched.createdAt,
+        language,
+      };
+    }
+
+    try {
+      await setDoc(doc(db, 'users', resolvedUser.id), { updatedAt: Date.now() }, { merge: true });
+    } catch {
+      // offline/deferred
+    }
+
+    setCurrentUser(resolvedUser);
+    saveToStorage(STORAGE_KEYS.USER, resolvedUser);
+    addAuditEvent(
+      'LOGIN_BIOMETRIC',
+      'SYSTEM',
+      resolvedUser.id,
+      `User logged in via biometric verification (${matched.deviceLabel})`
+    );
+
+    return {
+      success: true,
+      role: resolvedUser.primaryRole,
+      message: `Welcome back, ${resolvedUser.displayName}! Biometric identity verified.`,
+    };
+  };
+
+  const registerBiometric = async (): Promise<{ success: boolean; message?: string }> => {
+    if (!currentUser) {
+      return { success: false, message: 'You must be signed in to enroll your biometric sensor.' };
+    }
+
+    const regResult = await registerBiometricCredential({
+      userId: currentUser.id,
+      email: currentUser.email,
+      displayName: currentUser.displayName,
+    });
+
+    if (!regResult.success || !regResult.credential) {
+      return { success: false, message: regResult.error || 'Biometric enrollment failed.' };
+    }
+
+    const newCred = regResult.credential;
+    const updatedLocal = getLocalBiometricCredentials();
+    setEnrolledBiometrics(updatedLocal);
+
+    const existingCreds = currentUser.biometricCredentials || [];
+    const filteredCreds = existingCreds.filter((c) => c.id !== newCred.id);
+    const updatedCreds = [newCred, ...filteredCreds];
+
+    const updatedUser: UserEntity = {
+      ...currentUser,
+      biometricEnabled: true,
+      biometricCredentials: updatedCreds,
+      updatedAt: Date.now(),
+    };
+
+    setCurrentUser(updatedUser);
+    saveToStorage(STORAGE_KEYS.USER, updatedUser);
+
+    try {
+      await setDoc(
+        doc(db, 'users', currentUser.id),
+        {
+          biometricEnabled: true,
+          biometricCredentials: updatedCreds,
+          updatedAt: Date.now(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Firestore biometric sync deferred:', err);
+    }
+
+    addAuditEvent(
+      'SECURITY_BIOMETRIC_ENROLLED',
+      'AUTH',
+      currentUser.id,
+      `Biometric hardware sensor enrolled: ${newCred.deviceLabel}`
+    );
+
+    return {
+      success: true,
+      message: `${newCred.deviceLabel} enrolled successfully! You can now use fingerprint or Face ID to unlock the app.`,
+    };
+  };
+
+  const removeBiometric = async (credentialId: string): Promise<{ success: boolean; message?: string }> => {
+    removeLocalBiometricCredential(credentialId);
+    setEnrolledBiometrics(getLocalBiometricCredentials());
+
+    if (currentUser) {
+      const remaining = (currentUser.biometricCredentials || []).filter((c) => c.id !== credentialId);
+      const updatedUser: UserEntity = {
+        ...currentUser,
+        biometricEnabled: remaining.length > 0,
+        biometricCredentials: remaining,
+        updatedAt: Date.now(),
+      };
+      setCurrentUser(updatedUser);
+      saveToStorage(STORAGE_KEYS.USER, updatedUser);
+
+      try {
+        await setDoc(
+          doc(db, 'users', currentUser.id),
+          {
+            biometricEnabled: remaining.length > 0,
+            biometricCredentials: remaining,
+            updatedAt: Date.now(),
+          },
+          { merge: true }
+        );
+      } catch (err) {
+        console.warn('Firestore update deferred:', err);
+      }
+    }
+
+    return { success: true, message: 'Biometric passkey removed from this device.' };
+  };
+
+  const testBiometric = async (): Promise<{ success: boolean; message?: string }> => {
+    const res = await authenticateBiometricCredential();
+    if (res.success) {
+      return {
+        success: true,
+        message: `Hardware verification succeeded! Sensor: ${res.matchedCredential?.deviceLabel || 'Biometrics OK'}.`,
+      };
+    }
+    return { success: false, message: res.error || 'Biometric test failed.' };
   };
 
   const register = async (data: {
@@ -1354,6 +1592,14 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setRememberMe,
         login,
         loginWithGoogle,
+        loginWithBiometrics,
+        isBiometricSupported,
+        isBiometricAvailableOnDevice,
+        enrolledBiometrics,
+        deviceBiometricLabel,
+        registerBiometric,
+        removeBiometric,
+        testBiometric,
         register,
         sendPasswordReset,
         logout,
