@@ -31,6 +31,8 @@ import {
   saveToStorage,
   MARS_PROJECTS_CONTACT,
   clearMarsStorage,
+  getRememberMePreference,
+  setRememberMePreference,
 } from '../services/store';
 import { Language, translations, Translations } from '../utils/i18n';
 import { ThemeMode, getInitialTheme, saveThemePreference, applyTheme } from '../services/theme';
@@ -43,6 +45,7 @@ import {
   requestPasswordReset,
   logout as firebaseLogout,
   getAuthErrorMessage,
+  setAuthPersistencePreference,
 } from '../services/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -87,9 +90,11 @@ interface MarsContextType {
   triggerSync: (callback?: (status: boolean, message: string) => void) => void;
   
   // Auth & Identity
-  login: (identifier: string, password: string) => Promise<{ success: boolean; message?: string; role?: UserRoleKey }>;
-  loginWithGoogle: () => Promise<{ success: boolean; message?: string; role?: UserRoleKey }>;
-  register: (data: { displayName: string; phone: string; email: string; password: string; role?: UserRoleKey; propertyName?: string }) => Promise<{ success: boolean; message?: string; role?: UserRoleKey }>;
+  rememberMe: boolean;
+  setRememberMe: (remember: boolean) => void;
+  login: (identifier: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; message?: string; role?: UserRoleKey }>;
+  loginWithGoogle: (rememberMe?: boolean) => Promise<{ success: boolean; message?: string; role?: UserRoleKey }>;
+  register: (data: { displayName: string; phone: string; email: string; password: string; role?: UserRoleKey; propertyName?: string; rememberMe?: boolean }) => Promise<{ success: boolean; message?: string; role?: UserRoleKey }>;
   sendPasswordReset: (email: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
   switchWorkspace: (roleKey: UserRoleKey, workspaceTitle?: string) => void;
@@ -212,10 +217,29 @@ interface MarsContextType {
 const MarsContext = createContext<MarsContextType | undefined>(undefined);
 
 export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Current logged in user loaded from the authenticated Firebase profile.
-  const [currentUser, setCurrentUser] = useState<UserEntity | null>(() =>
-    loadFromStorage<UserEntity | null>(STORAGE_KEYS.USER, null)
-  );
+  // Remember Me & Firebase Session Persistence preference
+  const [rememberMe, setRememberMeState] = useState<boolean>(() => getRememberMePreference());
+
+  const setRememberMe = (remember: boolean) => {
+    setRememberMeState(remember);
+    setRememberMePreference(remember);
+    setAuthPersistencePreference(remember).catch((e) => {
+      console.warn('Failed to update auth persistence:', e);
+    });
+  };
+
+  // Current logged in user loaded from the authenticated Firebase profile / session.
+  const [currentUser, setCurrentUser] = useState<UserEntity | null>(() => {
+    const isRemember = getRememberMePreference();
+    if (!isRemember) {
+      // If remember me is disabled, session only persists during active tab session
+      const sessionActive = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('mars_session_active');
+      if (!sessionActive) {
+        return null;
+      }
+    }
+    return loadFromStorage<UserEntity | null>(STORAGE_KEYS.USER, null);
+  });
 
   // Language state
   const [language, setLanguageState] = useState<Language>(() => {
@@ -310,7 +334,13 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!firebaseUser) {
         setCurrentUser(null);
         localStorage.removeItem(STORAGE_KEYS.USER);
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.removeItem('mars_session_active');
+        }
         return;
+      }
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('mars_session_active', 'true');
       }
       try {
         let userObj: UserEntity | null = null;
@@ -451,7 +481,15 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (targetRole) switchContext(targetRole.id);
   };
 
-  const login = async (identifier: string, password: string): Promise<{ success: boolean; message?: string; role?: UserRoleKey }> => {
+  const login = async (
+    identifier: string,
+    password: string,
+    customRememberMe?: boolean
+  ): Promise<{ success: boolean; message?: string; role?: UserRoleKey }> => {
+    const shouldRemember = typeof customRememberMe === 'boolean' ? customRememberMe : rememberMe;
+    if (typeof customRememberMe === 'boolean' && customRememberMe !== rememberMe) {
+      setRememberMe(customRememberMe);
+    }
     const cleanEmail = identifier.trim();
     if (!cleanEmail.includes('@')) {
       return { success: false, message: 'Please enter a valid email address.' };
@@ -460,7 +498,10 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, message: 'Password must be at least 8 characters long.' };
     }
     try {
-      const fbUser = await emailSignIn(cleanEmail, password);
+      const fbUser = await emailSignIn(cleanEmail, password, shouldRemember);
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('mars_session_active', 'true');
+      }
       let user: UserEntity;
       let userFromFirestore: UserEntity | null = null;
       try {
@@ -521,9 +562,18 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const loginWithGoogle = async (): Promise<{ success: boolean; message?: string; role?: UserRoleKey }> => {
+  const loginWithGoogle = async (
+    customRememberMe?: boolean
+  ): Promise<{ success: boolean; message?: string; role?: UserRoleKey }> => {
+    const shouldRemember = typeof customRememberMe === 'boolean' ? customRememberMe : rememberMe;
+    if (typeof customRememberMe === 'boolean' && customRememberMe !== rememberMe) {
+      setRememberMe(customRememberMe);
+    }
     try {
-      const res = await googleSignIn();
+      const res = await googleSignIn(shouldRemember);
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('mars_session_active', 'true');
+      }
       const fbUser = res.user;
       let user: UserEntity;
       let userFromFirestore: UserEntity | null = null;
@@ -593,7 +643,12 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     password: string;
     role?: UserRoleKey;
     propertyName?: string;
+    rememberMe?: boolean;
   }): Promise<{ success: boolean; message?: string; role?: UserRoleKey }> => {
+    const shouldRemember = typeof data.rememberMe === 'boolean' ? data.rememberMe : rememberMe;
+    if (typeof data.rememberMe === 'boolean' && data.rememberMe !== rememberMe) {
+      setRememberMe(data.rememberMe);
+    }
     const cleanEmail = data.email.trim();
     const cleanName = data.displayName.trim();
     const cleanPhone = data.phone.trim();
@@ -619,7 +674,10 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const assignedRole: UserRoleKey = matchedTenant ? 'TENANT' : matchedManager ? 'MANAGER' : 'LANDLORD';
 
     try {
-      const firebaseUser = await emailSignUp(cleanEmail, data.password);
+      const firebaseUser = await emailSignUp(cleanEmail, data.password, shouldRemember);
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('mars_session_active', 'true');
+      }
       const now = Date.now();
       const roleAssignment: RoleAssignment = {
         id: `role-primary-${firebaseUser.uid}`,
@@ -704,6 +762,9 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem('mars_session_active');
+      }
       await firebaseLogout();
     } catch (e) {
       console.error('Logout error:', e);
@@ -1289,6 +1350,8 @@ export const MarsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         syncStatus,
         syncMessage,
         triggerSync,
+        rememberMe,
+        setRememberMe,
         login,
         loginWithGoogle,
         register,

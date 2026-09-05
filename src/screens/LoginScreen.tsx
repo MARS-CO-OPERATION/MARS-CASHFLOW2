@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useMars } from '../context/MarsContext';
 import {
   ShieldCheck,
@@ -14,7 +14,8 @@ import {
   Loader2,
   X,
   KeyRound,
-  Sparkles
+  Sparkles,
+  Check
 } from 'lucide-react';
 
 interface LoginScreenProps {
@@ -22,9 +23,32 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
-  const { login, loginWithGoogle, register, sendPasswordReset, currentUser, language, setLanguage, t } = useMars();
+  const {
+    login,
+    loginWithGoogle,
+    register,
+    sendPasswordReset,
+    currentUser,
+    language,
+    setLanguage,
+    t,
+    rememberMe,
+    setRememberMe
+  } = useMars();
 
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
+  
+  // Remember Me / Session Persistence state
+  const [rememberMeDevice, setRememberMeDevice] = useState<boolean>(rememberMe);
+
+  useEffect(() => {
+    setRememberMeDevice(rememberMe);
+  }, [rememberMe]);
+
+  const handleToggleRememberMe = (val: boolean) => {
+    setRememberMeDevice(val);
+    setRememberMe(val);
+  };
   
   // Sign-in states
   const [email, setEmail] = useState('');
@@ -68,7 +92,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
     setSuccessMessage(null);
     setLoadingState('Connecting with Google...');
     try {
-      const res = await loginWithGoogle();
+      const res = await loginWithGoogle(rememberMeDevice);
       if (res.success) {
         navigateForRole(res.role);
       } else if (res.message) {
@@ -99,7 +123,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
 
     setLoadingState('Signing you in...');
     try {
-      const res = await login(cleanEmail, password);
+      const res = await login(cleanEmail, password, rememberMeDevice);
       if (res.success) {
         navigateForRole(res.role);
       } else {
@@ -152,6 +176,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
         password: regPassword,
         role: 'LANDLORD',
         propertyName: propertyName.trim() || undefined,
+        rememberMe: rememberMeDevice,
       });
 
       if (res.success) {
@@ -263,7 +288,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
           )}
 
           {/* Primary Action: Google Authentication */}
-          <div>
+          <div className="space-y-2">
             <button
               type="button"
               disabled={!!loadingState}
@@ -299,6 +324,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
                 </>
               )}
             </button>
+            <div className="flex items-center justify-between px-1 text-[11px] text-[#65766F]">
+              <span className="flex items-center gap-1.5 font-medium">
+                <ShieldCheck className="w-3.5 h-3.5 text-[#0AB77F]" />
+                <span>Session Persistence:</span>
+                <span className="font-bold text-[#17231E]">
+                  {rememberMeDevice ? 'Persistent (Remember Me)' : 'Single Session'}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => handleToggleRememberMe(!rememberMeDevice)}
+                className="text-[10px] font-bold text-[#07885E] hover:underline cursor-pointer"
+              >
+                {rememberMeDevice ? 'Switch to Single Session' : 'Enable Remember Me'}
+              </button>
+            </div>
           </div>
 
           {/* Clean Divider */}
@@ -379,25 +420,63 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
                     Forgot password?
                   </button>
                 </div>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
+                <div className="relative flex items-center">
+                  <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
+                    id="login-password-input"
                     type={showPassword ? 'text' : 'password'}
                     required
                     autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password (min 8 chars)"
-                    className="w-full pl-10 pr-11 py-3 bg-[#F5F8F6] border border-[#DFE8E3] rounded-2xl text-xs sm:text-sm font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F] focus:bg-white transition-all"
+                    className="w-full pl-10 pr-12 py-3 bg-[#F5F8F6] border border-[#DFE8E3] rounded-2xl text-xs sm:text-sm font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F] focus:bg-white transition-all"
                   />
                   <button
+                    id="login-password-toggle-btn"
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-3.5 text-gray-400 hover:text-gray-600 cursor-pointer"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center text-[#65766F] hover:text-[#17231E] active:scale-90 transition-all rounded-xl focus:outline-hidden cursor-pointer touch-manipulation z-10"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPassword ? (
+                      <EyeOff className="w-4.5 h-4.5 text-[#0AB77F]" />
+                    ) : (
+                      <Eye className="w-4.5 h-4.5 text-gray-400 hover:text-gray-600" />
+                    )}
                   </button>
                 </div>
+              </div>
+
+              {/* Remember Me Session Persistence Checkbox */}
+              <div className="flex items-center justify-between py-1 px-0.5">
+                <label
+                  id="login-remember-me-label"
+                  htmlFor="login-remember-me-checkbox"
+                  className="flex items-center gap-2.5 cursor-pointer select-none group"
+                >
+                  <div className="relative flex items-center justify-center">
+                    <input
+                      id="login-remember-me-checkbox"
+                      type="checkbox"
+                      checked={rememberMeDevice}
+                      onChange={(e) => handleToggleRememberMe(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-4.5 h-4.5 rounded-lg border-2 border-[#DFE8E3] bg-[#F5F8F6] peer-checked:bg-[#0AB77F] peer-checked:border-[#0AB77F] transition-all flex items-center justify-center group-hover:border-[#0AB77F]/60">
+                      {rememberMeDevice && <Check className="w-3 h-3 text-white stroke-[3]" />}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-xs font-extrabold text-[#17231E] group-hover:text-[#0AB77F] transition-colors block">
+                      Remember me on this device
+                    </span>
+                    <span className="text-[10px] font-semibold text-[#65766F] block">
+                      {rememberMeDevice ? 'Persistent session across browser restarts' : 'Single session (ends on tab close)'}
+                    </span>
+                  </div>
+                </label>
               </div>
 
               <button
@@ -488,22 +567,30 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
                   <label className="block text-xs font-extrabold text-[#17231E] mb-1">
                     Password (min 8 characters) *
                   </label>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+                  <div className="relative flex items-center">
+                    <Lock className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
+                      id="register-password-input"
                       type={showRegPassword ? 'text' : 'password'}
                       required
                       value={regPassword}
                       onChange={(e) => setRegPassword(e.target.value)}
                       placeholder="Create strong password"
-                      className="w-full pl-9 pr-10 py-2.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs sm:text-sm font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F] focus:bg-white"
+                      className="w-full pl-9 pr-12 py-2.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs sm:text-sm font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F] focus:bg-white transition-all"
                     />
                     <button
+                      id="register-password-toggle-btn"
                       type="button"
                       onClick={() => setShowRegPassword(!showRegPassword)}
-                      className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 cursor-pointer"
+                      aria-label={showRegPassword ? 'Hide password' : 'Show password'}
+                      title={showRegPassword ? 'Hide password' : 'Show password'}
+                      className="absolute right-0.5 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center text-[#65766F] hover:text-[#17231E] active:scale-90 transition-all rounded-xl focus:outline-hidden cursor-pointer touch-manipulation z-10"
                     >
-                      {showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showRegPassword ? (
+                        <EyeOff className="w-4.5 h-4.5 text-[#0AB77F]" />
+                      ) : (
+                        <Eye className="w-4.5 h-4.5 text-gray-400 hover:text-gray-600" />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -512,22 +599,30 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
                   <label className="block text-xs font-extrabold text-[#17231E] mb-1">
                     Confirm Password *
                   </label>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+                  <div className="relative flex items-center">
+                    <Lock className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
+                      id="register-confirm-password-input"
                       type={showConfirmPassword ? 'text' : 'password'}
                       required
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="Re-enter password"
-                      className="w-full pl-9 pr-10 py-2.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs sm:text-sm font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F] focus:bg-white"
+                      className="w-full pl-9 pr-12 py-2.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs sm:text-sm font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F] focus:bg-white transition-all"
                     />
                     <button
+                      id="register-confirm-password-toggle-btn"
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 cursor-pointer"
+                      aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                      title={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                      className="absolute right-0.5 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center text-[#65766F] hover:text-[#17231E] active:scale-90 transition-all rounded-xl focus:outline-hidden cursor-pointer touch-manipulation z-10"
                     >
-                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showConfirmPassword ? (
+                        <EyeOff className="w-4.5 h-4.5 text-[#0AB77F]" />
+                      ) : (
+                        <Eye className="w-4.5 h-4.5 text-gray-400 hover:text-gray-600" />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -546,6 +641,36 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
                       className="w-full pl-9 pr-3.5 py-2.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs sm:text-sm font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F] focus:bg-white"
                     />
                   </div>
+                </div>
+
+                {/* Remember Me Session Persistence Checkbox for Registration */}
+                <div className="flex items-center justify-between py-1 px-0.5">
+                  <label
+                    id="register-remember-me-label"
+                    htmlFor="register-remember-me-checkbox"
+                    className="flex items-center gap-2.5 cursor-pointer select-none group"
+                  >
+                    <div className="relative flex items-center justify-center">
+                      <input
+                        id="register-remember-me-checkbox"
+                        type="checkbox"
+                        checked={rememberMeDevice}
+                        onChange={(e) => handleToggleRememberMe(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-4.5 h-4.5 rounded-lg border-2 border-[#DFE8E3] bg-[#F5F8F6] peer-checked:bg-[#0AB77F] peer-checked:border-[#0AB77F] transition-all flex items-center justify-center group-hover:border-[#0AB77F]/60">
+                        {rememberMeDevice && <Check className="w-3 h-3 text-white stroke-[3]" />}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-xs font-extrabold text-[#17231E] group-hover:text-[#0AB77F] transition-colors block">
+                        Remember me on this device
+                      </span>
+                      <span className="text-[10px] font-semibold text-[#65766F] block">
+                        Keep me signed in on this device across restarts
+                      </span>
+                    </div>
+                  </label>
                 </div>
 
                 <button

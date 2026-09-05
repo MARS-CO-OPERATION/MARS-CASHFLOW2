@@ -18,7 +18,9 @@ import {
   Sliders,
   DollarSign,
   Download,
-  Power
+  Power,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 interface LandlordSettingsScreenProps {
@@ -38,6 +40,8 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
     removeManager,
     resetToCleanDatabase,
     t,
+    rememberMe,
+    setRememberMe,
   } = useMars();
 
   const [activeTab, setActiveTab] = useState<'MANAGERS' | 'PORTFOLIO' | 'SECURITY'>('MANAGERS');
@@ -49,6 +53,7 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
   const [mgrPhone, setMgrPhone] = useState('');
   const [mgrEmail, setMgrEmail] = useState('');
   const [mgrPin, setMgrPin] = useState('');
+  const [showMgrPin, setShowMgrPin] = useState(false);
   const [mgrPropertyIds, setMgrPropertyIds] = useState<string[]>([]);
   const [mgrCanPayments, setMgrCanPayments] = useState(true);
   const [mgrCanExpenses, setMgrCanExpenses] = useState(true);
@@ -60,6 +65,7 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
   // PIN reset modal
   const [resetTargetMgr, setResetTargetMgr] = useState<ManagerEntity | null>(null);
   const [newPinInput, setNewPinInput] = useState('');
+  const [showResetPin, setShowResetPin] = useState(false);
 
   // Wipe confirmation modal
   const [showWipeConfirm, setShowWipeConfirm] = useState(false);
@@ -151,15 +157,32 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
             <form onSubmit={handleResetPinSubmit} className="space-y-3">
               <div>
                 <label className="block text-xs font-extrabold text-[#17231E] mb-1">New 4-Digit PIN</label>
-                <input
-                  type="password"
-                  maxLength={6}
-                  required
-                  value={newPinInput}
-                  onChange={(e) => setNewPinInput(e.target.value)}
-                  placeholder="e.g. 5678"
-                  className="w-full px-3.5 py-2.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]"
-                />
+                <div className="relative flex items-center">
+                  <input
+                    id="reset-manager-pin-input"
+                    type={showResetPin ? 'text' : 'password'}
+                    maxLength={6}
+                    required
+                    value={newPinInput}
+                    onChange={(e) => setNewPinInput(e.target.value)}
+                    placeholder="e.g. 5678"
+                    className="w-full pl-3.5 pr-12 py-2.5 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] focus:outline-hidden focus:border-[#0AB77F]"
+                  />
+                  <button
+                    id="reset-manager-pin-toggle-btn"
+                    type="button"
+                    onClick={() => setShowResetPin(!showResetPin)}
+                    aria-label={showResetPin ? 'Hide PIN' : 'Show PIN'}
+                    title={showResetPin ? 'Hide PIN' : 'Show PIN'}
+                    className="absolute right-0.5 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-gray-400 hover:text-gray-700 active:scale-90 transition-all rounded-lg cursor-pointer touch-manipulation z-10"
+                  >
+                    {showResetPin ? (
+                      <EyeOff className="w-4 h-4 text-[#0AB77F]" />
+                    ) : (
+                      <Eye className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+                    )}
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">
@@ -349,13 +372,30 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
                 </div>
                 <div>
                   <label className="block text-xs font-extrabold text-[#17231E] mb-1">Initial 4-Digit Login PIN</label>
-                  <input
-                    type="password"
-                    value={mgrPin}
-                    onChange={(e) => setMgrPin(e.target.value)}
-                    placeholder="1234"
-                    className="w-full px-3.5 py-2 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E]"
-                  />
+                  <div className="relative flex items-center">
+                    <input
+                      id="add-manager-pin-input"
+                      type={showMgrPin ? 'text' : 'password'}
+                      value={mgrPin}
+                      onChange={(e) => setMgrPin(e.target.value)}
+                      placeholder="1234"
+                      className="w-full pl-3.5 pr-12 py-2 bg-[#F5F8F6] border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E]"
+                    />
+                    <button
+                      id="add-manager-pin-toggle-btn"
+                      type="button"
+                      onClick={() => setShowMgrPin(!showMgrPin)}
+                      aria-label={showMgrPin ? 'Hide PIN' : 'Show PIN'}
+                      title={showMgrPin ? 'Hide PIN' : 'Show PIN'}
+                      className="absolute right-0.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center text-gray-400 hover:text-gray-700 active:scale-90 transition-all rounded-lg cursor-pointer touch-manipulation z-10"
+                    >
+                      {showMgrPin ? (
+                        <EyeOff className="w-4 h-4 text-[#0AB77F]" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -587,6 +627,51 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
       {/* TAB 4: ZERO-DATA & SYSTEM STORAGE */}
       {activeTab === 'SECURITY' && (
         <div className="bg-white rounded-3xl p-6 border border-[#DFE8E3] shadow-xs space-y-6 max-w-3xl">
+          {/* Firebase Session Persistence Settings */}
+          <div className="space-y-4 pb-6 border-b border-[#DFE8E3]">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-[#0AB77F]" />
+                  <h3 className="font-black text-sm text-[#17231E]">Firebase Auth Session Persistence</h3>
+                </div>
+                <p className="text-xs text-[#65766F]">
+                  Configure whether your authenticated user session is retained across browser restarts or cleared when the window closes.
+                </p>
+              </div>
+              <span className={`px-2.5 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${
+                rememberMe ? 'bg-[#E2F8EF] text-[#07885E]' : 'bg-gray-100 text-[#65766F]'
+              }`}>
+                {rememberMe ? 'Persistent (Local)' : 'Single Session'}
+              </span>
+            </div>
+
+            <div className="p-4 bg-[#F5F8F6] rounded-2xl border border-[#DFE8E3] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <span className="text-xs font-black text-[#17231E] block">
+                  Remember me on this device
+                </span>
+                <p className="text-[11px] text-[#65766F] leading-relaxed">
+                  {rememberMe
+                    ? 'Using browserLocalPersistence: You will remain securely signed in even after closing and reopening your browser.'
+                    : 'Using browserSessionPersistence: Your auth token is cleared as soon as your browser tab or window closes.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                id="toggle-auth-persistence-button"
+                onClick={() => setRememberMe(!rememberMe)}
+                className={`px-4 py-2 rounded-xl text-xs font-black cursor-pointer transition-all shrink-0 ${
+                  rememberMe
+                    ? 'bg-[#101915] hover:bg-black text-white'
+                    : 'bg-[#0AB77F] hover:bg-[#07885E] text-white shadow-xs'
+                }`}
+              >
+                {rememberMe ? 'Disable Remember Me' : 'Enable Remember Me'}
+              </button>
+            </div>
+          </div>
+
           <div className="space-y-1 pb-4 border-b border-[#DFE8E3]">
             <h3 className="font-black text-sm text-[#17231E]">Zero-Sample-Data Reset & Backup Engine</h3>
             <p className="text-xs text-[#65766F]">

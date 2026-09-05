@@ -10,6 +10,8 @@ import {
   Crown,
   Sparkles,
   Building,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 interface PlatformLoginProps {
@@ -24,12 +26,14 @@ export const PlatformLoginScreen: React.FC<PlatformLoginProps> = ({ onReturnToCa
   // Login form
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Invitation form
   const [invToken, setInvToken] = useState('');
   const [invDisplayName, setInvDisplayName] = useState('');
   const [invPassword, setInvPassword] = useState('');
+  const [showInvPassword, setShowInvPassword] = useState(false);
   const [invSuccessMsg, setInvSuccessMsg] = useState<string | null>(null);
 
   const handleLoginSubmit申 = async (e: React.FormEvent) => {
@@ -158,14 +162,31 @@ export const PlatformLoginScreen: React.FC<PlatformLoginProps> = ({ onReturnToCa
               <label className="block text-xs font-bold text-[#A1B8AE] mb-1.5">
                 Master Security Key / Password
               </label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                className="w-full px-4 py-3 bg-[#17231E] border border-[#2D3E35] focus:border-[#0AB77F] rounded-2xl text-xs font-medium text-white placeholder-gray-500 focus:outline-none transition-colors"
-              />
+              <div className="relative flex items-center">
+                <input
+                  id="platform-password-input"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="w-full pl-4 pr-12 py-3 bg-[#17231E] border border-[#2D3E35] focus:border-[#0AB77F] rounded-2xl text-xs font-medium text-white placeholder-gray-500 focus:outline-none transition-colors"
+                />
+                <button
+                  id="platform-password-toggle-btn"
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center text-gray-400 hover:text-white active:scale-90 transition-all rounded-xl focus:outline-none cursor-pointer touch-manipulation z-10"
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4.5 h-4.5 text-[#0AB77F]" />
+                  ) : (
+                    <Eye className="w-4.5 h-4.5 text-gray-400 hover:text-gray-200" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <button
@@ -210,15 +231,32 @@ export const PlatformLoginScreen: React.FC<PlatformLoginProps> = ({ onReturnToCa
               <label className="block text-xs font-bold text-[#A1B8AE] mb-1.5">
                 Set Account Master Password *
               </label>
-              <input
-                type="password"
-                required
-                minLength={8}
-                value={invPassword}
-                onChange={(e) => setInvPassword(e.target.value)}
-                placeholder="Minimum 8 characters"
-                className="w-full px-4 py-3 bg-[#17231E] border border-[#2D3E35] focus:border-[#0AB77F] rounded-2xl text-xs font-medium text-white placeholder-gray-500 focus:outline-none"
-              />
+              <div className="relative flex items-center">
+                <input
+                  id="platform-inv-password-input"
+                  type={showInvPassword ? 'text' : 'password'}
+                  required
+                  minLength={8}
+                  value={invPassword}
+                  onChange={(e) => setInvPassword(e.target.value)}
+                  placeholder="Minimum 8 characters"
+                  className="w-full pl-4 pr-12 py-3 bg-[#17231E] border border-[#2D3E35] focus:border-[#0AB77F] rounded-2xl text-xs font-medium text-white placeholder-gray-500 focus:outline-none"
+                />
+                <button
+                  id="platform-inv-password-toggle-btn"
+                  type="button"
+                  onClick={() => setShowInvPassword(!showInvPassword)}
+                  aria-label={showInvPassword ? 'Hide password' : 'Show password'}
+                  title={showInvPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center text-gray-400 hover:text-white active:scale-90 transition-all rounded-xl focus:outline-none cursor-pointer touch-manipulation z-10"
+                >
+                  {showInvPassword ? (
+                    <EyeOff className="w-4.5 h-4.5 text-[#0AB77F]" />
+                  ) : (
+                    <Eye className="w-4.5 h-4.5 text-gray-400 hover:text-gray-200" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <button

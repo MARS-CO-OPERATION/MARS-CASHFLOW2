@@ -1,6 +1,9 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
   GoogleAuthProvider,
   signInWithPopup,
   signInWithEmailAndPassword,
@@ -229,18 +232,47 @@ const signInWithGoogleProvider = async (provider: GoogleAuthProvider): Promise<{
   }
 };
 
-export const googleSignIn = async (): Promise<{ user: User; accessToken: string }> =>
-  signInWithGoogleProvider(googleAuthProvider);
+/**
+ * Configures Firebase Auth session persistence based on user preference:
+ * - browserLocalPersistence: User stays signed in across browser restarts / tab closures ('Remember me' enabled).
+ * - browserSessionPersistence: State is cleared when the tab/window is closed ('Remember me' disabled).
+ */
+export const setAuthPersistencePreference = async (rememberMe: boolean = true): Promise<void> => {
+  try {
+    const persistence = rememberMe ? browserLocalPersistence : browserSessionPersistence;
+    await setPersistence(auth, persistence);
+  } catch (err) {
+    console.warn('Failed to configure Firebase Auth persistence:', err);
+  }
+};
+
+// Immediately prime Firebase Auth with the saved persistence preference (defaults to true)
+if (typeof window !== 'undefined') {
+  try {
+    const savedPref = localStorage.getItem('mars_remember_me');
+    const isRemember = savedPref === null ? true : savedPref === 'true';
+    setAuthPersistencePreference(isRemember).catch(() => {});
+  } catch {
+    // ignore
+  }
+}
+
+export const googleSignIn = async (rememberMe: boolean = true): Promise<{ user: User; accessToken: string }> => {
+  await setAuthPersistencePreference(rememberMe);
+  return signInWithGoogleProvider(googleAuthProvider);
+};
 
 export const googleWorkspaceSignIn = async (): Promise<{ user: User; accessToken: string }> =>
   signInWithGoogleProvider(workspaceAuthProvider);
 
-export const emailSignIn = async (email: string, password: string): Promise<User> => {
+export const emailSignIn = async (email: string, password: string, rememberMe: boolean = true): Promise<User> => {
+  await setAuthPersistencePreference(rememberMe);
   const result = await signInWithEmailAndPassword(auth, email.trim(), password);
   return result.user;
 };
 
-export const emailSignUp = async (email: string, password: string): Promise<User> => {
+export const emailSignUp = async (email: string, password: string, rememberMe: boolean = true): Promise<User> => {
+  await setAuthPersistencePreference(rememberMe);
   const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
   return result.user;
 };
@@ -254,4 +286,4 @@ export const logout = async () => {
 };
 
 export const googleLogout = logout;
-export { onAuthStateChanged };
+export { onAuthStateChanged, browserLocalPersistence, browserSessionPersistence };

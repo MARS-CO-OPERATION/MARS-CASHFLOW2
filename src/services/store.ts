@@ -68,6 +68,7 @@ export const STORAGE_KEYS = {
   ACTIVE_CONTEXT: 'mars_active_context_v2',
   LANGUAGE: 'mars_language_v2',
   THEME: 'mars_theme_mode',
+  REMEMBER_ME: 'mars_remember_me',
 };
 
 // Safe Local Storage Helpers
@@ -87,6 +88,24 @@ export function saveToStorage<T>(key: string, data: T): void {
     localStorage.setItem(key, JSON.stringify(data));
   } catch (err) {
     console.error(`Error saving key ${key} to storage:`, err);
+  }
+}
+
+export function getRememberMePreference(): boolean {
+  try {
+    const val = localStorage.getItem(STORAGE_KEYS.REMEMBER_ME);
+    if (val === null) return true; // Default to true so users don't have to re-login frequently
+    return val === 'true';
+  } catch {
+    return true;
+  }
+}
+
+export function setRememberMePreference(remember: boolean): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.REMEMBER_ME, String(remember));
+  } catch (err) {
+    console.warn('Failed to save remember me preference:', err);
   }
 }
 
