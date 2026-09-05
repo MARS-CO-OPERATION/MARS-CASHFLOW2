@@ -9,7 +9,7 @@
         "phone": { "type": "string", "maxLength": 32 },
         "displayName": { "type": "string", "maxLength": 100 },
         "email": { "type": "string", "maxLength": 150 },
-        "primaryRole": { "type": "string", "enum": ["LANDLORD", "MANAGER", "TENANT", "SERVICE_PROVIDER"] },
+        "primaryRole": { "type": "string", "enum": ["LANDLORD", "MANAGER", "TENANT"] },
         "accountStatus": { "type": "string", "enum": ["ACTIVE", "INACTIVE", "SUSPENDED"] },
         "organizationId": { "type": "string", "maxLength": 128 },
         "isDemo": { "type": "boolean" },
@@ -30,13 +30,17 @@
         "totalUnits": { "type": "number" },
         "occupancyRate": { "type": "number" },
         "ownerUserId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "managerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "managerName": { "type": "string", "maxLength": 100 },
+        "managerEmail": { "type": "string", "maxLength": 150 },
+        "managerPhone": { "type": "string", "maxLength": 32 },
         "managerIds": { "type": "array" },
         "caretakerPhone": { "type": "string", "maxLength": 32 },
         "monthlyRevenue": { "type": "number" },
         "organizationId": { "type": "string", "maxLength": 128 },
         "createdAt": { "type": "string", "maxLength": 64 }
       },
-      "required": ["id", "name", "location", "totalUnits", "ownerUserId"]
+      "required": ["id", "name", "location", "totalUnits", "ownerUserId", "managerId"]
     },
     "Unit": {
       "title": "Unit",
@@ -212,7 +216,7 @@
     },
     "ServiceProvider": {
       "title": "ServiceProvider",
-      "description": "Registered maintenance professional or contractor",
+      "description": "Directory of verified contractors and maintenance technicians",
       "type": "object",
       "properties": {
         "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
@@ -227,6 +231,49 @@
         "createdAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["id", "name", "phone", "serviceType", "status"]
+    },
+    "ManagerAssignment": {
+      "title": "ManagerAssignment",
+      "description": "Explicit assignment of a manager to a property by the landlord",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "propertyId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "propertyName": { "type": "string", "maxLength": 120 },
+        "managerUserId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "managerName": { "type": "string", "maxLength": 100 },
+        "managerEmail": { "type": "string", "maxLength": 150 },
+        "managerPhone": { "type": "string", "maxLength": 32 },
+        "landlordUserId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "status": { "type": "string", "enum": ["ACTIVE", "REVOKED", "TRANSFERRED"] },
+        "permissions": { "type": "array" },
+        "assignedAt": { "type": "number" },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "propertyId", "managerUserId", "landlordUserId", "status"]
+    },
+    "ManagerInvitation": {
+      "title": "ManagerInvitation",
+      "description": "Time-limited one-time invitation token for onboarding property managers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "propertyId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "propertyName": { "type": "string", "maxLength": 120 },
+        "landlordUserId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "landlordName": { "type": "string", "maxLength": 100 },
+        "managerEmail": { "type": "string", "maxLength": 150 },
+        "managerPhone": { "type": "string", "maxLength": 32 },
+        "managerName": { "type": "string", "maxLength": 100 },
+        "token": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["PENDING", "ACCEPTED", "EXPIRED", "REVOKED"] },
+        "assignedRole": { "type": "string", "enum": ["MANAGER"] },
+        "expiresAt": { "type": "number" },
+        "acceptedAt": { "type": "number" },
+        "acceptedUserId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "propertyId", "landlordUserId", "managerEmail", "token", "status", "assignedRole", "expiresAt"]
     }
   },
   "firestore": {
@@ -269,6 +316,14 @@
     "/service_providers/{providerId}": {
       "schema": "ServiceProvider",
       "description": "Directory of verified contractors and maintenance technicians"
+    },
+    "/manager_assignments/{assignmentId}": {
+      "schema": "ManagerAssignment",
+      "description": "Property manager assignments by landlord"
+    },
+    "/manager_invitations/{invitationId}": {
+      "schema": "ManagerInvitation",
+      "description": "One-time invitation tokens for manager onboarding"
     }
   }
 }

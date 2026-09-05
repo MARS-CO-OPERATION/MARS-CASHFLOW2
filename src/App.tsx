@@ -25,12 +25,25 @@ import { ReceiptDetailScreen } from './screens/ReceiptDetailScreen';
 import { FaqScreen } from './screens/FaqScreen';
 import { PropertyMapScreen } from './screens/PropertyMapScreen';
 import { WorkspaceHubScreen } from './screens/WorkspaceHubScreen';
+import { LandlordSettingsScreen } from './screens/LandlordSettingsScreen';
+import { AcceptInvitationScreen } from './screens/AcceptInvitationScreen';
 
 const MainAppContent: React.FC = () => {
   const { currentUser } = useMars();
+  const [inviteToken, setInviteToken] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('inviteToken');
+    }
+    return null;
+  });
+
   const [currentRoute, setCurrentRoute] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('inviteToken')) {
+        return 'accept_invite';
+      }
       if (urlParams.get('mode') === 'platform' || window.location.pathname.startsWith('/platform')) {
         return 'platform_hq';
       }
@@ -41,7 +54,7 @@ const MainAppContent: React.FC = () => {
 
   // Never expose customer data screens without an authenticated Firebase profile.
   useEffect(() => {
-    if (!currentUser && currentRoute !== 'login' && currentRoute !== 'platform_hq') {
+    if (!currentUser && currentRoute !== 'login' && currentRoute !== 'platform_hq' && currentRoute !== 'accept_invite') {
       setCurrentRoute('login');
     }
   }, [currentUser, currentRoute]);
@@ -139,6 +152,15 @@ const MainAppContent: React.FC = () => {
         return <PropertyMapScreen onNavigate={handleNavigate} />;
       case 'workspace_hub':
         return <WorkspaceHubScreen />;
+      case 'landlord_settings':
+        return <LandlordSettingsScreen onNavigate={handleNavigate} />;
+      case 'accept_invite':
+        return (
+          <AcceptInvitationScreen
+            inviteToken={inviteToken || ''}
+            onNavigate={handleNavigate}
+          />
+        );
       case 'faq':
         return <FaqScreen onNavigate={handleNavigate} />;
       default:
@@ -151,7 +173,7 @@ const MainAppContent: React.FC = () => {
     }
   };
 
-  const isAuthScreen = currentRoute === 'login';
+  const isAuthScreen = currentRoute === 'login' || currentRoute === 'accept_invite';
 
   return (
     <div className="min-h-screen bg-[#F5F8F6] text-[#17231E] flex flex-col font-sans">

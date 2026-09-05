@@ -188,9 +188,12 @@ export interface RoleAssignment {
   roleKey: UserRoleKey;
   role?: UserRoleKey;
   propertyId?: string | null;
+  propertyName?: string | null;
   unitId?: string | null;
   workspaceTitle?: string;
   permissions?: string[];
+  delegatedPermissions?: ManagerPermissions | string[];
+  assignedByUserId?: string;
   assignedAt: number;
 }
 export type RoleAssignmentEntity = RoleAssignment;
@@ -232,6 +235,7 @@ export interface UserEntity {
   language?: 'en' | 'lg';
   biometricEnabled?: boolean;
   biometricCredentials?: BiometricCredentialEntity[];
+  rememberMe?: boolean;
   createdAt: number;
   updatedAt?: number;
 }
@@ -381,6 +385,8 @@ export interface ManagerAssignmentRecord {
   managerPhone?: string;
   managerEmail?: string;
   assignedAt: number;
+  assignedByUserId?: string;
+  notes?: string;
   unassignedAt?: number;
   unassignedReason?: string;
 }
@@ -408,14 +414,20 @@ export interface PropertyEntity {
   syncStatus?: 'SYNCED' | 'PENDING' | 'FAILED';
   lastSyncedAt?: number;
   createdAt: number;
+  updatedAt?: number;
+  units?: any[];
 }
 
 export interface ManagerInvitationEntity {
   id: string;
   email: string;
+  managerEmail?: string;
   phone: string;
+  managerPhone?: string;
   name: string;
+  managerName?: string;
   landlordId: string;
+  landlordUserId?: string;
   landlordName: string;
   propertyId: string;
   propertyName: string;
@@ -423,6 +435,8 @@ export interface ManagerInvitationEntity {
   status: 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'REVOKED';
   permissions?: ManagerPermissions;
   expiresAt: number;
+  acceptedAt?: number;
+  acceptedUserId?: string;
   createdAt: number;
 }
 
@@ -605,12 +619,15 @@ export interface ServiceProviderEntity {
 }
 
 export interface ManagerPermissions {
-  canCollectPayments: boolean;
+  canCollectPayments?: boolean;
+  canCollectRent?: boolean;
   canLogPayments?: boolean;
-  canLogExpenses: boolean;
-  canDispatchMaintenance: boolean;
+  canLogExpenses?: boolean;
+  canDispatchMaintenance?: boolean;
   canDispatchRepairs?: boolean;
-  expenseLimitUgx: number;
+  canIssueReceipts?: boolean;
+  expenseLimitUgx?: number;
+  maxExpenseLimitUgx?: number;
   maxExpenseApprovalUgx?: number;
 }
 
@@ -619,7 +636,7 @@ export interface ManagerEntity {
   name: string;
   phone: string;
   email?: string;
-  pin: string;
+  pin?: string;
   assignedPropertyIds: string[];
   permissions: ManagerPermissions;
   status: 'ACTIVE' | 'DISABLED';

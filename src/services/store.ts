@@ -65,6 +65,7 @@ export const STORAGE_KEYS = {
   RECURRING_TASKS: 'mars_recurring_tasks_v2',
   AUDIT_TRAIL: 'mars_audit_trail_v2',
   MANAGERS: 'mars_managers_v2',
+  MANAGER_INVITATIONS: 'mars_manager_invitations_v2',
   ACTIVE_CONTEXT: 'mars_active_context_v2',
   LANGUAGE: 'mars_language_v2',
   THEME: 'mars_theme_mode',

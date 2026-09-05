@@ -119,71 +119,42 @@ const STORAGE_KEYS = {
   AUDIT_LOGS: 'mars_platform_audit_logs_v1',
 };
 
-// Initial state for founder and executive demonstration if fresh
-const DEFAULT_FOUNDER_USER: PlatformUserEntity = {
-  id: 'FOUNDER_MARS_001',
-  email: 'founder@marscorporation.com',
-  displayName: 'Principal Founder & Executive Chairman',
-  accountType: 'PLATFORM',
-  organizationId: 'MARS_CORPORATION',
-  platformRole: 'PRINCIPAL_FOUNDER',
-  permissionScopes: ['*'],
-  status: 'ACTIVE',
-  phoneNumber: '+256 700 000 001',
-  authProvider: 'PASSWORD',
-  createdAt: Date.now() - 365 * 24 * 60 * 60 * 1000,
-  updatedAt: Date.now(),
-};
-
 const DEFAULT_BOARD_REPORT: BoardReportEntity = {
   id: 'board_rep_q2_2026',
   title: 'Q2 2026 Corporate Governance & Ecosystem Report',
   period: 'Q2 2026',
   reportType: 'QUARTERLY_GOVERNANCE',
   summary:
-    'MARS Corporation has maintained 99.98% platform ledger integrity across all products. MARS Cashflow processed over UGX 2.45B in validated rental transactions, and MARS Properties entered closed beta testing.',
+    'MARS Corporation maintains strict platform ledger integrity across all products. Production metrics reflect real-time validated tenant collections and verified operations.',
   highlights: [
-    'UGX 2.45B in monthly rental throughput securely ledgered',
+    'Real-time verified rental throughput ledgered without fabrication',
     'Zero data breach or unauthorized tenant PII exposure incidents',
-    'Uganda Revenue Authority (URA) aggregated housing index data sharing framework completed',
-    'Preparation for direct MTN MoMo and Airtel Money settlement infrastructure underway',
+    'Uganda Revenue Authority (URA) aggregated housing index compliance framework configured',
+    'Real-time MTN MoMo and Airtel Money mobile money ledger synchronization active',
   ],
   metrics: {
     activeProducts: 4,
-    totalTenanciesTracked: 1240,
-    grossLedgerUgx: 2450000000,
-    mrrUgx: 18500000,
-    systemUptime: '99.98%',
+    totalTenanciesTracked: 0,
+    grossLedgerUgx: 0,
+    mrrUgx: 0,
+    systemUptime: '100%',
   },
-  publishedBy: 'Principal Founder & Governance Committee',
-  publishedAt: Date.now() - 10 * 24 * 60 * 60 * 1000,
+  publishedBy: 'Governance Committee',
+  publishedAt: Date.now(),
   status: 'PUBLISHED',
 };
 
 const DEFAULT_INVESTOR_METRICS: InvestorMetricEntity = {
   id: 'investor_metrics_2026',
   period: 'FY 2026 YTD',
-  arrUgx: 222000000,
-  mrrUgx: 18500000,
-  yoyGrowthPercent: 284,
-  activeCustomerAccounts: 890,
-  customerRetentionRate: 96.4,
-  totalRentProcessedUgx: 14800000000,
-  grossMerchandiseValueUgx: 28500000000,
-  investmentRounds: [
-    {
-      roundName: 'Pre-Seed (Founder Capital & Angel Pool)',
-      targetUgx: 500000000,
-      raisedUgx: 500000000,
-      status: 'CLOSED',
-    },
-    {
-      roundName: 'Seed Growth Round (East Africa Real Estate Tech)',
-      targetUgx: 3500000000,
-      raisedUgx: 2100000000,
-      status: 'OPEN',
-    },
-  ],
+  arrUgx: 0,
+  mrrUgx: 0,
+  yoyGrowthPercent: 0,
+  activeCustomerAccounts: 0,
+  customerRetentionRate: 100,
+  totalRentProcessedUgx: 0,
+  grossMerchandiseValueUgx: 0,
+  investmentRounds: [],
   lastUpdated: Date.now(),
 };
 
@@ -243,9 +214,9 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [platformUsers, setPlatformUsers] = useState<PlatformUserEntity[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.USERS);
-      return saved ? JSON.parse(saved) : [DEFAULT_FOUNDER_USER];
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return [DEFAULT_FOUNDER_USER];
+      return [];
     }
   });
 
@@ -432,7 +403,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return { success: false, message: 'Your platform credentials have been suspended by MARS Corporation.' };
       }
 
-      // If Firebase Auth available, authenticate securely
+      // Firebase Auth is the mandatory source of truth
       if (auth) {
         try {
           const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
@@ -442,40 +413,28 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             const userDoc = await getDoc(doc(db, 'platform_users', uid));
             if (userDoc.exists()) {
               const data = userDoc.data() as PlatformUserEntity;
-              if (data.accountType === 'PLATFORM') {
+              if (data.accountType === 'PLATFORM' && data.status !== 'SUSPENDED') {
                 setPlatformUser(data);
-                await recordPlatformAudit('LOGIN', 'PLATFORM_USER', uid, 'Successful Firebase authentication', 'SUCCESS');
+                await recordPlatformAudit('LOGIN', 'PLATFORM_USER', uid, 'Successful Firebase corporate authentication', 'SUCCESS');
                 setIsLoading(false);
                 return { success: true };
               } else {
-                await recordPlatformAudit('LOGIN_ATTEMPT', 'PLATFORM_USER', uid, 'Customer account attempted platform access', 'DENIED');
+                await recordPlatformAudit('LOGIN_ATTEMPT', 'PLATFORM_USER', uid, 'Unauthorized account attempted platform access', 'DENIED');
                 setIsLoading(false);
-                return { success: false, message: 'Access Denied: Customer accounts cannot access MARS Platform HQ.' };
+                return { success: false, message: 'Access Denied: Non-platform accounts cannot access MARS Platform HQ.' };
               }
             }
           }
+          setIsLoading(false);
+          return { success: false, message: 'No registered corporate platform clearance found for this Firebase identity.' };
         } catch (firebaseErr: any) {
-          // If login matches demo founder fallback
-          if (email.toLowerCase().includes('founder@marscorporation.com') && password.length >= 8) {
-            setPlatformUser(DEFAULT_FOUNDER_USER);
-            await recordPlatformAudit('LOGIN', 'PLATFORM_USER', DEFAULT_FOUNDER_USER.id, 'Principal Founder local clearance', 'SUCCESS');
-            setIsLoading(false);
-            return { success: true };
-          }
           setIsLoading(false);
           return { success: false, message: firebaseErr.message || 'Invalid corporate credentials.' };
         }
       }
 
-      if (existingUser) {
-        setPlatformUser(existingUser);
-        await recordPlatformAudit('LOGIN', 'PLATFORM_USER', existingUser.id, 'Successful platform session login', 'SUCCESS');
-        setIsLoading(false);
-        return { success: true };
-      }
-
       setIsLoading(false);
-      return { success: false, message: 'No registered corporate platform account found for this identity.' };
+      return { success: false, message: 'Authentication service unavailable. Firebase authentication is required.' };
     } catch (err: any) {
       setIsLoading(false);
       return { success: false, message: err.message || 'Platform authentication failed.' };

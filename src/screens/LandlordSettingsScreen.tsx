@@ -23,7 +23,11 @@ import {
   EyeOff,
   Fingerprint,
   ScanFace,
-  Loader2
+  Loader2,
+  Copy,
+  Check,
+  Send,
+  ExternalLink
 } from 'lucide-react';
 
 interface LandlordSettingsScreenProps {
@@ -36,11 +40,14 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
     currentRole,
     properties,
     managers,
+    managerInvitations,
     addManager,
     updateManagerStatus,
     resetManagerPin,
     updateManagerPermissions,
     removeManager,
+    inviteManager,
+    revokeManagerInvitation,
     resetToCleanDatabase,
     t,
     rememberMe,
@@ -56,6 +63,8 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
 
   const [activeTab, setActiveTab] = useState<'MANAGERS' | 'PORTFOLIO' | 'SECURITY'>('MANAGERS');
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [copiedTokenId, setCopiedTokenId] = useState<string | null>(null);
+  const [latestInviteUrl, setLatestInviteUrl] = useState<string | null>(null);
 
   // Biometric state and handlers
   const [biometricLoading, setBiometricLoading] = useState(false);
@@ -158,39 +167,63 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
     );
   }
 
-  const handleCreateManager = (e: React.FormEvent) => {
+  const handleCopyInviteLink = (token: string, invId: string) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const url = `${origin}?inviteToken=${token}`;
+    navigator.clipboard.writeText(url);
+    setCopiedTokenId(invId);
+    setTimeout(() => setCopiedTokenId(null), 3000);
+  };
+
+  const handleCreateManager = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!mgrName || !mgrPhone || !mgrEmail || mgrPropertyIds.length === 0) {
       setFeedback({ type: 'error', text: 'Enter the manager name, email, phone number, and at least one property.' });
       return;
     }
 
+    const parsedCap = parseFloat(mgrMaxExpense.replace(/[^0-9]/g, '')) || 500000;
+    const permissions = {
+      canCollectPayments: mgrCanPayments,
+      canLogPayments: mgrCanPayments,
+      canLogExpenses: mgrCanExpenses,
+      expenseLimitUgx: parsedCap,
+      maxExpenseApprovalUgx: parsedCap,
+      canDispatchMaintenance: mgrCanRepairs,
+      canDispatchRepairs: mgrCanRepairs,
+    };
+
     addManager({
       name: mgrName,
       phone: mgrPhone,
       email: mgrEmail,
-      // Manager authentication must be completed through Firebase Auth; never store a plaintext PIN.
       pin: '',
       assignedPropertyIds: mgrPropertyIds.length > 0 ? mgrPropertyIds : properties.map((p) => p.id),
       status: 'ACTIVE',
-      permissions: {
-        canCollectPayments: mgrCanPayments,
-        canLogPayments: mgrCanPayments,
-        canLogExpenses: mgrCanExpenses,
-        expenseLimitUgx: parseFloat(mgrMaxExpense.replace(/[^0-9]/g, '')) || 200000,
-        maxExpenseApprovalUgx: parseFloat(mgrMaxExpense.replace(/[^0-9]/g, '')) || 200000,
-        canDispatchMaintenance: mgrCanRepairs,
-        canDispatchRepairs: mgrCanRepairs,
-      },
+      permissions,
     });
+
+    const primaryPropId = mgrPropertyIds[0] || properties[0]?.id;
+    if (primaryPropId) {
+      const invRes = await inviteManager({
+        name: mgrName,
+        email: mgrEmail,
+        phone: mgrPhone,
+        propertyId: primaryPropId,
+        permissions,
+      });
+      if (invRes.success && invRes.inviteUrl) {
+        setLatestInviteUrl(invRes.inviteUrl);
+      }
+    }
 
     setMgrName('');
     setMgrPhone('');
     setMgrEmail('');
     setMgrPin('1234');
     setShowAddManagerModal(false);
-    setFeedback({ type: 'success', text: `Manager ${mgrName} onboarded and granted operational credentials.` });
-    setTimeout(() => setFeedback(null), 4000);
+    setFeedback({ type: 'success', text: `Manager ${mgrName} registered. Secure onboarding link generated below.` });
+    setTimeout(() => setFeedback(null), 6000);
   };
 
   const handleResetPinSubmit = (e: React.FormEvent) => {
@@ -629,6 +662,127 @@ export const LandlordSettingsScreen: React.FC<LandlordSettingsScreenProps> = ({ 
               ))}
             </div>
           )}
+
+          {/* Manager Invitations & Onboarding Links */}
+          <div className="bg-white rounded-3xl p-6 border border-[#DFE8E3] shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#DFE8E3]">
+              <div>
+                <h4 className="font-black text-sm text-[#17231E]">
+                  Manager Invitations & Onboarding Links
+                </h4>
+                <p className="text-xs text-[#65766F]">
+                  Secure, time-limited tokens generated for manager account registration and property assignment.
+                </p>
+              </div>
+              {latestInviteUrl && (
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(latestInviteUrl);
+                    setFeedback({ type: 'success', text: 'Latest manager invitation link copied to clipboard!' });
+                    setTimeout(() => setFeedback(null), 3000);
+                  }}
+                  className="px-3 py-1.5 bg-[#101915] text-[#62E3B6] hover:bg-[#1E2B24] rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  Copy Latest Link
+                </button>
+              )}
+            </div>
+
+            {managerInvitations.length === 0 ? (
+              <div className="text-center py-6 text-xs text-[#65766F] space-y-1">
+                <p className="font-semibold text-[#17231E]">No active manager invitations</p>
+                <p>When you register a manager or add a property with manager email, a one-time onboarding link will appear here.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {managerInvitations.map((inv) => {
+                  const isPending = inv.status === 'PENDING';
+                  const isAccepted = inv.status === 'ACCEPTED';
+                  const isExpired = inv.status === 'EXPIRED' || (isPending && inv.expiresAt < Date.now());
+                  const isRevoked = inv.status === 'REVOKED';
+
+                  return (
+                    <div
+                      key={inv.id}
+                      className="p-4 rounded-2xl border border-[#DFE8E3] bg-[#FBFDFB] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-extrabold text-xs text-[#17231E]">
+                            {inv.name || inv.managerName}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                              isAccepted
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : isPending && !isExpired
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            {isAccepted
+                              ? '● ACTIVATED'
+                              : isPending && !isExpired
+                              ? '● PENDING ACCEPTANCE'
+                              : isRevoked
+                              ? '● REVOKED'
+                              : '● EXPIRED'}
+                          </span>
+                        </div>
+
+                        <div className="text-[11px] text-[#65766F] flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span>🏢 {inv.propertyName}</span>
+                          {inv.email && <span>✉️ {inv.email}</span>}
+                          {inv.phone && <span>📞 {inv.phone}</span>}
+                        </div>
+
+                        <div className="text-[10px] text-[#8A9E94]">
+                          {isAccepted
+                            ? 'Access granted and property manager role activated'
+                            : `Expires: ${new Date(inv.expiresAt).toLocaleDateString()}`}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-auto">
+                        {isPending && !isExpired && (
+                          <>
+                            <button
+                              onClick={() => handleCopyInviteLink(inv.token, inv.id)}
+                              className="px-3 py-1.5 bg-white hover:bg-gray-50 border border-[#DFE8E3] rounded-xl text-xs font-bold text-[#17231E] flex items-center gap-1.5 shadow-xs cursor-pointer"
+                            >
+                              {copiedTokenId === inv.id ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5 text-[#0AB77F]" />
+                                  <span className="text-[#0AB77F]">Copied!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3.5 h-3.5 text-gray-500" />
+                                  <span>Copy Link</span>
+                                </>
+                              )}
+                            </button>
+
+                            <button
+                              onClick={async () => {
+                                await revokeManagerInvitation(inv.id);
+                                setFeedback({ type: 'success', text: `Invitation for ${inv.name} revoked.` });
+                                setTimeout(() => setFeedback(null), 3000);
+                              }}
+                              className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                            >
+                              Revoke
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

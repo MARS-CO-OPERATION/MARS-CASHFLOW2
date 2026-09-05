@@ -82,15 +82,25 @@ service cloud.firestore {
     function isPropertyOwner(propertyId) {
       return isSignedIn() &&
         exists(/databases/$(database)/documents/properties/$(propertyId)) &&
-        get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerUserId == request.auth.uid;
+        (
+          (('ownerUserId' in get(/databases/$(database)/documents/properties/$(propertyId)).data) &&
+           get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerUserId == request.auth.uid) ||
+          (('ownerId' in get(/databases/$(database)/documents/properties/$(propertyId)).data) &&
+           get(/databases/$(database)/documents/properties/$(propertyId)).data.ownerId == request.auth.uid)
+        );
     }
 
     function isPropertyManager(propertyId) {
       return isSignedIn() &&
         exists(/databases/$(database)/documents/properties/$(propertyId)) &&
         (
+          (('managerId' in get(/databases/$(database)/documents/properties/$(propertyId)).data) &&
+           (get(/databases/$(database)/documents/properties/$(propertyId)).data.managerId == request.auth.uid)) ||
           (('managerIds' in get(/databases/$(database)/documents/properties/$(propertyId)).data) &&
            (request.auth.uid in get(/databases/$(database)/documents/properties/$(propertyId)).data.managerIds)) ||
+          (('managerEmail' in get(/databases/$(database)/documents/properties/$(propertyId)).data) &&
+           request.auth.token.email != null &&
+           get(/databases/$(database)/documents/properties/$(propertyId)).data.managerEmail == request.auth.token.email) ||
           (('caretakerPhone' in get(/databases/$(database)/documents/properties/$(propertyId)).data) &&
            request.auth.token.phone_number != null &&
            get(/databases/$(database)/documents/properties/$(propertyId)).data.caretakerPhone == request.auth.token.phone_number)
@@ -129,7 +139,17 @@ service cloud.firestore {
         data.name is string && data.name.size() > 0 && data.name.size() <= 120 &&
         data.location is string && data.location.size() <= 150 &&
         data.totalUnits is number && data.totalUnits >= 0 &&
-        data.ownerUserId is string && isValidId(data.ownerUserId) &&
+        (
+          (('ownerUserId' in data) && data.ownerUserId is string && isValidId(data.ownerUserId)) ||
+          (('ownerId' in data) && data.ownerId is string && isValidId(data.ownerId))
+        ) &&
+        // Mandatory manager/caretaker assignment enforcement
+        (
+          (('managerId' in data) && data.managerId is string && data.managerId.size() > 0) ||
+          (('managerIds' in data) && data.managerIds is list && data.managerIds.size() > 0) ||
+          (('managerName' in data) && data.managerName is string && data.managerName.size() > 0) ||
+          (('caretakerPhone' in data) && data.caretakerPhone is string && data.caretakerPhone.size() > 0)
+        ) &&
         (!('occupancyRate' in data) || data.occupancyRate is number) &&
         (!('caretakerPhone' in data) || (data.caretakerPhone is string && data.caretakerPhone.size() <= 32)) &&
         (!('monthlyRevenue' in data) || data.monthlyRevenue is number) &&
@@ -260,23 +280,30 @@ service cloud.firestore {
     match /properties/{propertyId} {
       allow get: if isSignedIn() && isValidId(propertyId) && (
         resource.data.ownerUserId == request.auth.uid ||
+        resource.data.ownerId == request.auth.uid ||
+        (('managerId' in resource.data) && resource.data.managerId == request.auth.uid) ||
         (('managerIds' in resource.data) && request.auth.uid in resource.data.managerIds) ||
+        (('managerEmail' in resource.data) && request.auth.token.email != null && resource.data.managerEmail == request.auth.token.email) ||
         isPropertyOwner(propertyId) ||
-        isLandlord()
+        isPropertyManager(propertyId)
       );
       allow list: if isSignedIn() && (
-        resource.data.ownerUserId == request.auth.uid ||
-        (('managerIds' in resource.data) && request.auth.uid in resource.data.managerIds)
+        (('ownerUserId' in resource.data) && resource.data.ownerUserId == request.auth.uid) ||
+        (('ownerId' in resource.data) && resource.data.ownerId == request.auth.uid) ||
+        (('managerId' in resource.data) && resource.data.managerId == request.auth.uid) ||
+        (('managerIds' in resource.data) && request.auth.uid in resource.data.managerIds) ||
+        (('managerEmail' in resource.data) && request.auth.token.email != null && resource.data.managerEmail == request.auth.token.email)
       );
       allow create: if isSignedIn() && isValidId(propertyId) &&
-        (isLandlord() || isManager()) &&
-        incoming().ownerUserId == request.auth.uid &&
+        isLandlord() &&
+        ((('ownerUserId' in incoming()) && incoming().ownerUserId == request.auth.uid) ||
+         (('ownerId' in incoming()) && incoming().ownerId == request.auth.uid)) &&
         isValidProperty(incoming());
       allow update: if isSignedIn() && isValidId(propertyId) && isValidProperty(incoming()) && (
-        (resource.data.ownerUserId == request.auth.uid && incoming().ownerUserId == existing().ownerUserId) ||
+        isPropertyOwner(propertyId) ||
         (isPropertyManager(propertyId) && incoming().diff(existing()).affectedKeys().hasOnly(['occupancyRate', 'caretakerPhone', 'monthlyRevenue']))
       );
-      allow delete: if isSignedIn() && isValidId(propertyId) && resource.data.ownerUserId == request.auth.uid;
+      allow delete: if isSignedIn() && isValidId(propertyId) && isPropertyOwner(propertyId);
     }
 
     // =========================================================================
@@ -502,6 +529,63 @@ service cloud.firestore {
     }
 
     // =========================================================================
+    // 10. MANAGERS, ASSIGNMENTS & INVITATIONS
+    // =========================================================================
+    match /managers/{managerId} {
+      allow get: if isSignedIn() && (request.auth.uid == managerId || isLandlord());
+      allow list: if isSignedIn() && (request.auth.uid == managerId || isLandlord());
+      allow create, update, delete: if isSignedIn() && isLandlord();
+    }
+
+    match /manager_invitations/{invitationId} {
+      allow get: if (
+        (isSignedIn() && (
+          (('landlordUserId' in resource.data) && resource.data.landlordUserId == request.auth.uid) ||
+          (('landlordId' in resource.data) && resource.data.landlordId == request.auth.uid) ||
+          (request.auth.token.email != null && (
+            (('email' in resource.data) && resource.data.email == request.auth.token.email) ||
+            (('managerEmail' in resource.data) && resource.data.managerEmail == request.auth.token.email)
+          )) ||
+          (('acceptedUserId' in resource.data) && resource.data.acceptedUserId == request.auth.uid)
+        )) ||
+        (resource.data.status == 'PENDING' && resource.data.expiresAt > request.time.toMillis())
+      );
+      allow list: if isSignedIn() && isLandlord() && (
+        (('landlordUserId' in resource.data) && resource.data.landlordUserId == request.auth.uid) ||
+        (('landlordId' in resource.data) && resource.data.landlordId == request.auth.uid)
+      );
+      allow create: if isSignedIn() && isValidId(invitationId) &&
+        isLandlord() &&
+        ((('landlordUserId' in incoming()) && incoming().landlordUserId == request.auth.uid) ||
+         (('landlordId' in incoming()) && incoming().landlordId == request.auth.uid));
+      allow update: if isSignedIn() && isValidId(invitationId) && (
+        ((('landlordUserId' in resource.data) && resource.data.landlordUserId == request.auth.uid) ||
+         (('landlordId' in resource.data) && resource.data.landlordId == request.auth.uid)) ||
+        (existing().status == 'PENDING' &&
+         incoming().status == 'ACCEPTED' &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'acceptedAt', 'acceptedUserId']) &&
+         incoming().acceptedUserId == request.auth.uid)
+      );
+      allow delete: if isSignedIn() && isValidId(invitationId) &&
+        ((('landlordUserId' in resource.data) && resource.data.landlordUserId == request.auth.uid) ||
+         (('landlordId' in resource.data) && resource.data.landlordId == request.auth.uid));
+    }
+
+    match /manager_assignments/{assignmentId} {
+      allow get: if isSignedIn() && isValidId(assignmentId) && (
+        resource.data.landlordUserId == request.auth.uid ||
+        resource.data.managerUserId == request.auth.uid
+      );
+      allow list: if isSignedIn() && (
+        resource.data.landlordUserId == request.auth.uid ||
+        resource.data.managerUserId == request.auth.uid
+      );
+      allow create, update, delete: if isSignedIn() && isValidId(assignmentId) &&
+        isLandlord() &&
+        incoming().landlordUserId == request.auth.uid;
+    }
+
+    // =========================================================================
     // 11. MARS CORPORATION PLATFORM HQ — CLASS A CORPORATE RULES
     // =========================================================================
 
@@ -526,7 +610,7 @@ service cloud.firestore {
 
     // Platform Invitation Tokens
     match /platform_invitations/{invitationId} {
-      allow get: if true; // Token verification on invitation redemption
+      allow get: if isSignedIn(); // Token verification on invitation redemption
       allow list: if isPlatformAdmin() || isPrincipalFounder();
       allow create, update, delete: if isPlatformAdmin() || isPrincipalFounder();
     }
@@ -552,7 +636,7 @@ service cloud.firestore {
     // Platform-Wide Immutable Audit Trail
     match /platform_audit_logs/{logId} {
       allow get, list: if isPlatformAdmin() || isBoardMember() || isPrincipalFounder();
-      allow create: if isSignedIn(); // System audit logs can be appended
+      allow create: if isSignedIn() && (isPlatformAdmin() || isPrincipalFounder() || request.auth.uid == incoming().actorId);
       allow update, delete: if false; // Audit logs are immutable and tamper-proof
     }
   }
